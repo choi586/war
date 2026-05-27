@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Last War 3D - Hardcore Wave Edition</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+    </script>
+    <script type="module">
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { MD2Loader } from 'three/addons/loaders/MD2Loader.js';
+        import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+        window.GLTFLoader = GLTFLoader;
+        window.MD2Loader = MD2Loader;
+        window.SkeletonUtils = SkeletonUtils;
+        window.dispatchEvent(new Event('assets-ready'));
+    </script>
+    
+    <style>
+        body {
+            margin: 0; padding: 0; background-color: #020617; 
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif;
+            user-select: none; overflow: hidden;
+        }
+
+        #gameWrapper {
+            position: relative; width: 100%; max-width: 480px; height: 100%; max-height: 900px;
+            background-color: #0b192c; overflow: hidden; box-shadow: 0 0 50px rgba(0,0,0,0.8); touch-action: none; 
+        }
+        
+        #canvas3d { width: 100%; height: 100%; display: block; }
+        
+        #startScreen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('https://choi586.github.io/other/lastimg.png');
+            background-size: 100% 100%; background-position: center;
+            display: flex; flex-direction: column; justify-content: flex-end; align-items: center; z-index: 999;
+        }
+        #startBtn {
+            margin-bottom: 80px; padding: 18px 54px; font-size: 24px; font-weight: 900;
+            color: #fff; background: linear-gradient(135deg, #4b5563, #374151);
+            border: 3px solid #6b7280; border-radius: 40px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            cursor: not-allowed; transition: all 0.3s ease;
+        }
+        #startBtn.ready {
+            background: linear-gradient(135deg, #0284c7, #0369a1); border: 3px solid #fff;
+            box-shadow: 0 10px 25px rgba(3, 105, 161, 0.5); cursor: pointer; animation: pulse 1.5s infinite alternate;
+        }
+        @keyframes pulse { 0% { transform: scale(0.96); } 100% { transform: scale(1.04); } }
+
+        #ui {
+            position: absolute; top: 20px; left: 0; width: 100%; display: flex; justify-content: space-around; align-items: center;
+            color: #fff; font-size: 18px; font-weight: 900; text-shadow: 0 4px 12px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; display: none; 
+        }
+        .highlight { color: #38bdf8; } .score { color: #f59e0b; }
+        
+        #progressContainer {
+            position: absolute; top: 65px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 340px; height: 10px;
+            background: rgba(15, 23, 42, 0.8); border: 2px solid #475569; border-radius: 6px; overflow: hidden; z-index: 10; display: none;
+        }
+        #progressBar { width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #00f0ff); }
+        
+        #systemAlert {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+            color: #fff; font-weight: 900; font-size: 26px; letter-spacing: 2px;
+            display: none; text-shadow: 0 0 15px #000, 0 0 30px #000; text-align: center; pointer-events: none; z-index: 10; width: 100%;
+        }
+        #weaponStatus {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            color: #f97316; font-weight: 900; font-size: 15px; text-shadow: 0 0 15px rgba(249, 115, 22, 0.8);
+            display: none; pointer-events: none; background: rgba(15, 23, 42, 0.9); padding: 8px 20px; border-radius: 30px;
+            border: 2px solid #f97316; z-index: 10; white-space: nowrap;
+        }
+
+        .world-label {
+            position: absolute; color: white; font-weight: bold; font-size: 14px; transform: translate(-50%, -50%);
+            pointer-events: none; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; z-index: 5; white-space: nowrap;
+        }
+        .gate-label { font-size: 24px; font-family: 'Arial Black', sans-serif; }
+        .block-label { font-size: 22px; font-family: 'Arial Black', sans-serif; color: #cbd5e1; text-shadow: 0 0 10px #475569, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; }
+        .ally-count-label {
+            font-size: 32px; font-family: 'Arial Black', sans-serif; color: #38bdf8;
+            text-shadow: 0 0 15px #0284c7, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameWrapper">
+        <div id="startScreen"><button id="startBtn" disabled>3D 에셋 로딩 중...</button></div>
+        <div id="ui">
+            <div>병력: <span id="count" class="highlight">5</span></div>
+            <div id="stageText" style="color: #fff; background: rgba(15, 23, 42, 0.6); padding: 4px 10px; border-radius: 8px; border: 1px solid #334155;">STAGE 1</div>
+            <div>SCORE: <span id="score" class="score">0</span></div>
+        </div>
+        <div id="progressContainer"><div id="progressBar"></div></div>
+        <div id="systemAlert">⚠️ BOSS APPROACHING ⚠️</div>
+        <div id="weaponStatus">🔥 특수 중화기 라이플 가동 중! 🔥</div>
+        <div id="labels"></div>
+        <div id="canvas3d"></div>
+    </div>
+
+    <script>
+        const wrapper = document.getElementById("gameWrapper"); 
+
+        let scene, camera, renderer, gameClock;
+        let ambientLight, dirLight;
+
+        let baseSoldierModel = null;
+        let baseZombieGeom = null;
+        let baseZombieTex = null;
+
+        let score = 0, currentStage = 1, totalSoldierCount = 5;
+        let gameOver = false, gameClear = false, isTransitioning = false, isGameStarted = false;
+        let gameFrame = 0, stageProgress = 0; 
+        let bossSpawned = false, bossActive = false, bossInstance = null;
+
+        let hasRifle = false, rifleTimer = 0;
+        const RIFLE_DURATION = 120; 
+
+        let soldiers3D = [], bullets3D = [], zombies3D = [], gates3D = [], obstacles3D = [], particles3D = [];
+        
+        const bridgeWidth = 14;
+        const bridgeLength = 60;
+        const MAX_SOLDIER_MODELS = 12; 
+        const MAX_STAGES = 10; 
+
+        const STAGE_BALANCING = {
+            1:  { bossHp: 1170,   zombieHp: 10,   containerHp: 175,     speed: 0.15 },
+            2:  { bossHp: 3510,   zombieHp: 38,   containerHp: 560,     speed: 0.18 }, 
+            3:  { bossHp: 8775,   zombieHp: 90,   containerHp: 1750,    speed: 0.21 }, 
+            4:  { bossHp: 17550,  zombieHp: 180,  containerHp: 4550,    speed: 0.24 }, 
+            5:  { bossHp: 32175,  zombieHp: 300,  containerHp: 10500,   speed: 0.27 }, 
+            6:  { bossHp: 52650,  zombieHp: 525,  containerHp: 21000,   speed: 0.30 }, 
+            7:  { bossHp: 81900,  zombieHp: 900,  containerHp: 38500,   speed: 0.33 }, 
+            8:  { bossHp: 131625, zombieHp: 1500, containerHp: 63000,   speed: 0.36 }, 
+            9:  { bossHp: 204750, zombieHp: 2700, containerHp: 112000,  speed: 0.39 }, 
+            10: { bossHp: 351000, zombieHp: 4500, containerHp: 196000,  speed: 0.44 }  
+        };
+
+        const player = { x: 0, targetX: 0, z: 20, r: 0.9 }; 
+
+        const startScreen = document.getElementById("startScreen");
+        const startBtn = document.getElementById("startBtn");
+        const uiHUD = document.getElementById("ui");
+        const progressHUD = document.getElementById("progressContainer");
+        const countUI = document.getElementById("count");
+        const scoreUI = document.getElementById("score");
+        const stageTextUI = document.getElementById("stageText");
+        const progressBar = document.getElementById("progressBar");
+        const systemAlert = document.getElementById("systemAlert");
+        const weaponStatusUI = document.getElementById("weaponStatus");
+        const labelsContainer = document.getElementById("labels");
+
+        window.addEventListener('assets-ready', () => {
+            const gltfLoader = new window.GLTFLoader();
+            const md2Loader = new window.MD2Loader();
+            const texLoader = new THREE.TextureLoader();
+
+            gltfLoader.load('https://threejs.org/examples/models/gltf/Soldier.glb', function(gltf) {
+                baseSoldierModel = gltf;
+                baseZombieTex = texLoader.load('https://threejs.org/examples/models/md2/ogro/ogrobase.png');
+                baseZombieTex.colorSpace = THREE.SRGBColorSpace;
+                md2Loader.load('https://threejs.org/examples/models/md2/ogro/ogro.md2', function(geometry) {
+                    geometry.computeVertexNormals();
+                    baseZombieGeom = geometry;
+                    startBtn.innerText = "전장 진입 (START)";
+                    startBtn.removeAttribute("disabled");
+                    startBtn.classList.add("ready");
+                });
+            });
+        });
+
+        function startActualGame(e) {
+            if(e) e.stopPropagation();
+            if(!baseSoldierModel || !baseZombieGeom) return;
+            isGameStarted = true;
+            startScreen.style.display = "none"; uiHUD.style.display = "flex"; progressHUD.style.display = "block";
+            initThree();
+            wrapper.addEventListener('mousemove', (ev) => onInputMove(ev.clientX));
+            wrapper.addEventListener('touchmove', (ev) => onInputMove(ev.touches[0].clientX), {passive: false});
+            initGame(true); animate();
+        }
+
+        function initThree() {
+            const container = document.getElementById("canvas3d");
+            gameClock = new THREE.Clock();
+            scene = new THREE.Scene(); scene.background = new THREE.Color('#0b192c'); scene.fog = new THREE.FogExp2('#0b192c', 0.012); 
+            camera = new THREE.PerspectiveCamera(50, wrapper.clientWidth / wrapper.clientHeight, 0.1, 140);
+            camera.position.set(0, 22, 38); camera.lookAt(0, 0, 5);
+            renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(wrapper.clientWidth, wrapper.clientHeight); renderer.shadowMap.enabled = true;
+            container.innerHTML = ""; container.appendChild(renderer.domElement);
+
+            ambientLight = new THREE.HemisphereLight(0xffffff, 0x405060, 3.0); scene.add(ambientLight);
+            dirLight = new THREE.DirectionalLight('#ffffff', 3.0); dirLight.position.set(-6, 12, 8); dirLight.castShadow = true; scene.add(dirLight);
+
+            const bridgeGeo = new THREE.BoxGeometry(bridgeWidth, 1, bridgeLength);
+            const bridgeMat = new THREE.MeshStandardMaterial({ color: '#9b9b93', roughness: 0.72, metalness: 0.08 });
+            const bridgeMesh = new THREE.Mesh(bridgeGeo, bridgeMat); bridgeMesh.position.set(0, -0.5, 0); bridgeMesh.receiveShadow = true; scene.add(bridgeMesh);
+
+            const railGeo = new THREE.BoxGeometry(0.3, 0.8, bridgeLength); const railMat = new THREE.MeshStandardMaterial({ color: '#4e5965', roughness: 0.6, metalness: 0.1 });
+            const leftRail = new THREE.Mesh(railGeo, railMat); leftRail.position.set(-bridgeWidth/2, 0.4, 0);
+            const rightRail = leftRail.clone(); rightRail.position.x = bridgeWidth/2; scene.add(leftRail, rightRail);
+
+            const waterGeo = new THREE.PlaneGeometry(500, 500); const waterMat = new THREE.MeshStandardMaterial({ color: '#055f76', roughness: 0.8, metalness: 0.05 });
+            const waterMesh = new THREE.Mesh(waterGeo, waterMat); waterMesh.rotation.x = -Math.PI / 2; waterMesh.position.y = -1.5; scene.add(waterMesh);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function returnToTitle() {
+            uiHUD.style.display = "none";
+            progressHUD.style.display = "none";
+            systemAlert.style.display = "none";
+            weaponStatusUI.style.display = "none";
+            labelsContainer.innerHTML = "";
+            
+            startScreen.style.display = "flex";
+            startBtn.innerText = "다시 플레이 (RESTART)";
+            startBtn.disabled = false;
+            startBtn.classList.add("ready");
+            
+            isGameStarted = false;
+            
+            clearArray3D(soldiers3D); clearArray3D(bullets3D); clearArray3D(zombies3D);
+            clearArray3D(gates3D); clearArray3D(obstacles3D); clearArray3D(particles3D);
+            if(bossInstance && bossInstance.mesh) scene.remove(bossInstance.mesh); bossInstance = null;
+        }
+
+        function initGame(allReset = true) {
+            if(allReset) { score = 0; currentStage = 1; totalSoldierCount = 5; }
+            gameOver = false; gameClear = false; isTransitioning = false; bossSpawned = false; bossActive = false;
+            gameFrame = 0; stageProgress = 0; hasRifle = false; rifleTimer = 0;
+            clearArray3D(soldiers3D); clearArray3D(bullets3D); clearArray3D(zombies3D); clearArray3D(gates3D); clearArray3D(obstacles3D); clearArray3D(particles3D);
+            if(bossInstance && bossInstance.mesh) scene.remove(bossInstance.mesh); bossInstance = null;
+            systemAlert.style.display = "none"; weaponStatusUI.style.display = "none"; progressBar.style.width = "0%"; stageTextUI.innerText = `STAGE ${currentStage}`;
+            player.x = 0; player.targetX = 0;
+            buildSoldiers3D(); spawnNormalGates3D(); spawnContainer3D(); spawnZombieWave3D();
+        }
+
+        function clearArray3D(arr) { arr.forEach(item => { if(item.mesh) scene.remove(item.mesh); }); arr.length = 0; }
+
+        function buildSoldiers3D() {
+            clearArray3D(soldiers3D);
+            if(!baseSoldierModel || !window.SkeletonUtils) return;
+            const drawCount = Math.min(totalSoldierCount, MAX_SOLDIER_MODELS);
+            for(let i = 0; i < drawCount; i++) {
+                const clone = window.SkeletonUtils.clone(baseSoldierModel.scene);
+                clone.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                
+                clone.scale.set(1.5, 1.5, 1.5); 
+                clone.rotation.y = 0; clone.position.set(player.x, 0, player.z); scene.add(clone);
+                
+                const mixer = new THREE.AnimationMixer(clone);
+                const runClip = baseSoldierModel.animations.find(a => /run/i.test(a.name)) || baseSoldierModel.animations[0];
+                mixer.clipAction(runClip).play();
+                
+                soldiers3D.push({ 
+                    mesh: clone, mixer: mixer, 
+                    offsetX: Math.sin(i) * (0.42 + Math.floor(i/5)*0.30), 
+                    offsetZ: Math.cos(i) * (0.39 + Math.floor(i/5)*0.30) 
+                });
+            }
+        }
+
+        function spawnNormalGates3D() {
+            if (bossSpawned || isTransitioning) return;
+            clearArray3D(gates3D);
+            const config = STAGE_BALANCING[currentStage];
+            const gateW = bridgeWidth / 2 - 0.5; const spawnZ = -30; 
+            const isLeftBonus = Math.random() < 0.5; 
+            
+            const multi = currentStage;
+            let typeL = isLeftBonus ? "+" : "-";
+            let valueL = typeL === "+" ? Math.floor(Math.random() * 8 * multi) + (5 * multi) : Math.floor(Math.random() * 4 * multi) + 3;
+            
+            if(isLeftBonus && Math.random() < 0.05) { typeL = "x"; valueL = 2; } 
+
+            let typeR = !isLeftBonus ? "+" : "-";
+            let valueR = typeR === "+" ? Math.floor(Math.random() * 8 * multi) + (5 * multi) : Math.floor(Math.random() * 4 * multi) + 3;
+
+            const gateData = [ { x: -bridgeWidth/3.6, type: typeL, val: valueL }, { x: bridgeWidth/3.6, type: typeR, val: valueR } ];
+
+            gateData.forEach(data => {
+                const isGood = data.type === "+" || data.type === "x";
+                const color = isGood ? '#10b981' : '#ef4444';
+                const geo = new THREE.BoxGeometry(gateW, 2.4, 0.4);
+                const mat = new THREE.MeshStandardMaterial({ color: color, transparent: true, opacity: 0.65, emissive: color, emissiveIntensity: 0.3 });
+                const mesh = new THREE.Mesh(geo, mat); mesh.position.set(data.x, 1.2, spawnZ); scene.add(mesh);
+                gates3D.push({ mesh: mesh, type: data.type, value: data.val, speed: config.speed, w: gateW, h: 0.4, text: data.type === "x" ? `x${data.val}` : `${data.type}${data.val}`, color: color });
+            });
+        }
+
+        function spawnContainer3D() {
+            if (bossSpawned || isTransitioning) return;
+            clearArray3D(obstacles3D);
+            const config = STAGE_BALANCING[currentStage];
+            
+            const blockWidth = (bridgeWidth / 3) - 0.4;
+            const positions = [-bridgeWidth/3, 0, bridgeWidth/3]; 
+
+            positions.forEach((xPos) => {
+                const geo = new THREE.BoxGeometry(blockWidth, 3.5, 3.0);
+                const mat = new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.7, roughness: 0.3 });
+                const mesh = new THREE.Mesh(geo, mat); 
+                mesh.position.set(xPos, 1.75, -55); 
+                mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+                
+                const hpVariance = Math.floor(config.containerHp * (Math.random() * 0.6 + 0.7)); 
+                
+                obstacles3D.push({ 
+                    mesh: mesh, 
+                    hp: hpVariance, 
+                    maxHp: hpVariance, 
+                    speed: config.speed, 
+                    w: blockWidth, 
+                    d: 3.0 
+                });
+            });
+        }
+
+        function spawnZombieWave3D() {
+            if (bossSpawned || isTransitioning || !baseZombieGeom) return;
+            clearArray3D(zombies3D);
+            const config = STAGE_BALANCING[currentStage];
+            
+            const count = Math.floor(Math.random() * 3) + 3;
+            
+            for(let i=0; i<count; i++) {
+                const mat = new THREE.MeshStandardMaterial({ map: baseZombieTex, color: 0xffffff, roughness: 0.6, morphTargets: true });
+                const mesh = new THREE.Mesh(baseZombieGeom, mat); 
+                
+                mesh.scale.set(0.0675, 0.0675, 0.0675); 
+                mesh.rotation.y = -Math.PI / 2; mesh.castShadow = true; mesh.receiveShadow = true;
+                
+                mesh.position.set(Math.random() * 8 - 4, 1.8, -24 - (i * 3.2));
+                if(mesh.morphTargetInfluences) mesh.morphTargetInfluences[0] = 1; scene.add(mesh);
+                
+                const mixer = new THREE.AnimationMixer(mesh); mixer.clipAction(baseZombieGeom.animations[0]).play();
+                
+                const hpVariance = Math.floor(config.zombieHp * (Math.random() * 0.4 + 0.8));
+                
+                zombies3D.push({ mesh: mesh, mixer: mixer, hp: hpVariance, maxHp: hpVariance, r: 1.2, speed: config.speed * 0.65, isMD2: true });
+            }
+        }
+
+        function triggerParticles3D(pos, color, count=6) {
+            const geo = new THREE.SphereGeometry(0.08, 4, 4); const mat = new THREE.MeshBasicMaterial({ color: color });
+            for(let i=0; i<count; i++) {
+                const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x += Math.random()*0.4 - 0.2; p.position.y += Math.random()*0.4 - 0.2; scene.add(p);
+                particles3D.push({ mesh: p, vx: Math.random() * 0.2 - 0.1, vy: Math.random() * 0.2, vz: Math.random() * 0.2 - 0.1, life: 1.0 });
+            }
+        }
+
+        function triggerBossEncounter3D() {
+            bossSpawned = true; systemAlert.innerText = `⚠️ STAGE ${currentStage} TITAN BOSS ⚠️`; systemAlert.style.display = "block"; clearArray3D(gates3D);
+            const config = STAGE_BALANCING[currentStage];
+            setTimeout(() => {
+                systemAlert.style.display = "none";
+                if(gameOver || gameClear || isTransitioning || !baseZombieGeom) return;
+                const mat = new THREE.MeshStandardMaterial({ map: baseZombieTex, color: 0xffffff, morphTargets: true });
+                const mesh = new THREE.Mesh(baseZombieGeom, mat); 
+                
+                const bossScale = 0.18; 
+                mesh.scale.set(bossScale, bossScale, bossScale); mesh.rotation.y = -Math.PI / 2; mesh.castShadow = true;
+                
+                mesh.position.set(0, 4.5, -35); scene.add(mesh);
+                
+                const mixer = new THREE.AnimationMixer(mesh); mixer.clipAction(baseZombieGeom.animations[0]).play();
+                
+                bossActive = true; bossInstance = { mesh: mesh, mixer: mixer, r: 3.3, hp: config.bossHp, maxHp: config.bossHp, speed: config.speed * 0.5, moveDir: 1 };
+            }, 2300);
+        }
+
+        function nextStageTrigger3D() {
+            isTransitioning = true; bossActive = false; bossSpawned = true;
+            if (bossInstance && bossInstance.mesh) scene.remove(bossInstance.mesh); bossInstance = null;
+            clearArray3D(bullets3D); clearArray3D(zombies3D); clearArray3D(gates3D); clearArray3D(obstacles3D);
+            
+            if(currentStage < MAX_STAGES) {
+                currentStage++; systemAlert.innerHTML = `<span style="color:#10b981; font-size:24px; text-shadow: 0 0 10px #000;">STAGE CLEAR!</span><br><span style="font-size:14px;color:#94a3b8;font-weight:bold; text-shadow: 0 0 5px #000;">STAGE ${currentStage} 진격!</span>`; systemAlert.style.display = "block";
+                setTimeout(() => { initGame(false); }, 2500);
+            } else { 
+                gameClear = true;
+                systemAlert.innerHTML = `<span style="color:#fbbf24; font-size:32px; text-shadow: 0 0 20px #f59e0b, 0 0 10px #000;">MISSION ACCOMPLISHED!</span><br><span style="font-size:16px;color:#cbd5e1;font-weight:bold; text-shadow: 0 0 5px #000;">모든 좀비 위협을 제거했습니다!</span>`; 
+                systemAlert.style.display = "block";
+                setTimeout(() => { returnToTitle(); }, 4000);
+            }
+        }
+
+        function onInputMove(clientX) {
+            if (gameOver || gameClear || isTransitioning || !isGameStarted) return;
+            const rect = wrapper.getBoundingClientRect(); const normX = ((clientX - rect.left) / rect.width) * 2 - 1;
+            player.targetX = normX * (bridgeWidth / 2 - player.r - 0.6);
+        }
+
+        function updateLabels3D() {
+            labelsContainer.innerHTML = ""; const tempV = new THREE.Vector3();
+            
+            const playerCenterPos = new THREE.Vector3(player.x, 5.0, player.z); 
+            projectTo2D(playerCenterPos, totalSoldierCount.toString(), "ally-count-label");
+            
+            gates3D.forEach(g => { if(g.mesh.position.z > 32 || g.mesh.position.z < -42) return; g.mesh.getWorldPosition(tempV); tempV.y += 1.4; projectTo2D(tempV, g.text, "gate-label"); });
+            
+            obstacles3D.forEach(o => { 
+                if(o.mesh.position.z > 32 || o.mesh.position.z < -42) return; 
+                o.mesh.getWorldPosition(tempV); 
+                tempV.y += 1.0; 
+                projectTo2D(tempV, `🛡️ ${Math.ceil(o.hp)}`, "block-label"); 
+            });
+            
+            zombies3D.forEach(z => { if(z.mesh.position.z > 32 || z.mesh.position.z < -42) return; z.mesh.getWorldPosition(tempV); tempV.y += 2.4; projectTo2D(tempV, `💀 HP: ${Math.ceil(z.hp)}`); });
+            if (bossActive && bossInstance && bossInstance.mesh) { bossInstance.mesh.getWorldPosition(tempV); tempV.y += bossInstance.r + 1.0; projectTo2D(tempV, `👑 TITAN BOSS: ${Math.ceil(bossInstance.hp)}/${Math.ceil(bossInstance.maxHp)}`, "gate-label"); }
+        }
+
+        function projectTo2D(vector3, text, customClass="") {
+            vector3.project(camera); const x = (vector3.x * .5 + .5) * wrapper.clientWidth; const y = (vector3.y * -.5 + .5) * wrapper.clientHeight;
+            if(vector3.z > 1) return; const div = document.createElement('div'); div.className = `world-label ${customClass}`; div.style.left = `${x}px`; div.style.top = `${y}px`; div.innerText = text; labelsContainer.appendChild(div);
+        }
+
+        function update() {
+            if (isTransitioning || gameOver || gameClear || !isGameStarted) {
+                particles3D.forEach((p, i) => {
+                    p.mesh.position.x += p.vx; p.mesh.position.y += p.vy; p.mesh.position.z += p.vz;
+                    p.vy -= 0.01; p.life -= 0.04; p.mesh.material.opacity = p.life;
+                    if(p.life <= 0) { scene.remove(p.mesh); particles3D.splice(i, 1); }
+                }); return;
+            }
+            
+            gameFrame++; const dt = gameClock ? Math.min(0.04, gameClock.getDelta()) : 0.016;
+            soldiers3D.forEach(s => { if(s.mixer) s.mixer.update(dt * 1.5); }); zombies3D.forEach(z => { if(z.mixer) z.mixer.update(dt); });
+            if(bossActive && bossInstance && bossInstance.mixer) bossInstance.mixer.update(dt);
+            if (hasRifle) { rifleTimer--; if(rifleTimer <= 0) { hasRifle = false; weaponStatusUI.style.display = "none"; } }
+            if (!bossSpawned) { stageProgress += 0.08; progressBar.style.width = `${stageProgress}%`; if(stageProgress >= 100) triggerBossEncounter3D(); }
+
+            player.x += (player.targetX - player.x) * 0.2;
+            soldiers3D.forEach((s) => { s.mesh.position.x += (player.x + s.offsetX - s.mesh.position.x) * 0.22; s.mesh.position.z += (player.z + s.offsetZ - s.mesh.position.z) * 0.22; s.mesh.position.y = 0; });
+
+            const interval = hasRifle ? 4 : 5; 
+            if (gameFrame % interval === 0 && totalSoldierCount > 0) {
+                const visualBullets = Math.min(totalSoldierCount, 40);
+                const damageMultiplier = totalSoldierCount / visualBullets; 
+                const baseDamage = hasRifle ? 1.5 : 1.0;
+                const finalDamage = baseDamage * damageMultiplier;
+
+                const bulletGeo = hasRifle ? new THREE.BoxGeometry(0.18, 0.18, 0.9) : new THREE.BoxGeometry(0.08, 0.08, 0.5);
+                const bulletMat = new THREE.MeshBasicMaterial({ color: hasRifle ? '#f97316' : '#00f0ff' });
+
+                for(let i=0; i<visualBullets; i++) {
+                    let sourceX = player.x;
+                    if(soldiers3D.length > 0) {
+                        const randomSoldier = soldiers3D[Math.floor(Math.random() * soldiers3D.length)];
+                        sourceX = randomSoldier.mesh.position.x;
+                    }
+                    const bMesh = new THREE.Mesh(bulletGeo, bulletMat);
+                    
+                    bMesh.position.set(sourceX, 1.05, player.z - 0.5);
+                    const spreadX = (Math.random() - 0.5) * (visualBullets * 0.02);
+                    bMesh.position.x += spreadX;
+                    
+                    scene.add(bMesh); 
+                    bullets3D.push({ mesh: bMesh, speed: -1.6, damage: finalDamage });
+                }
+            }
+
+            for(let i = bullets3D.length - 1; i >= 0; i--) {
+                let b = bullets3D[i]; b.mesh.position.z += b.speed;
+                if(b.mesh.position.z < -45) { scene.remove(b.mesh); bullets3D.splice(i, 1); }
+            }
+
+            if (!bossSpawned) {
+                gates3D.forEach((g) => {
+                    g.mesh.position.z += g.speed;
+                    if (g.mesh.position.z > player.z - 0.7 && g.mesh.position.z < player.z + 0.7) {
+                        const halfW = g.w / 2;
+                        if (player.x > g.mesh.position.x - halfW && player.x < g.mesh.position.x + halfW) {
+                            let tCount = totalSoldierCount;
+                            if (g.type === "+") tCount += g.value; if (g.type === "x") tCount *= g.value;
+                            if (g.type === "-") tCount -= g.value; if (g.type === "÷") tCount = Math.floor(tCount / g.value);
+                            totalSoldierCount = Math.max(0, tCount); buildSoldiers3D(); g.mesh.position.z = 9999; 
+                        }
+                    }
+                });
+                if(gates3D.length > 0 && gates3D[0].mesh.position.z > player.z + 2) spawnNormalGates3D();
+            }
+
+            if (!bossSpawned) {
+                for (let oIdx = obstacles3D.length - 1; oIdx >= 0; oIdx--) {
+                    let o = obstacles3D[oIdx];
+                    o.mesh.position.z += o.speed;
+                    let isDestroyed = false;
+
+                    for (let bIdx = bullets3D.length - 1; bIdx >= 0; bIdx--) {
+                        let b = bullets3D[bIdx];
+                        const bp = b.mesh.position; const op = o.mesh.position;
+                        
+                        if (bp.x > op.x - o.w/2 && bp.x < op.x + o.w/2 && bp.z > op.z - o.d/2 && bp.z < op.z + o.d/2) {
+                            scene.remove(b.mesh); bullets3D.splice(bIdx, 1);
+                            
+                            o.hp -= b.damage; 
+                            triggerParticles3D(bp, '#94a3b8', 2); 
+                            
+                            if(o.hp <= 0) {
+                                scene.remove(o.mesh); 
+                                obstacles3D.splice(oIdx, 1);
+                                score += 300; 
+                                if(Math.random() < 0.3) {
+                                    hasRifle = true; rifleTimer = RIFLE_DURATION; weaponStatusUI.style.display = "block";
+                                }
+                                isDestroyed = true;
+                                break; 
+                            }
+                        }
+                    }
+                    if (!isDestroyed && o.mesh.position.z > player.z + 5) {
+                        scene.remove(o.mesh);
+                        obstacles3D.splice(oIdx, 1);
+                    }
+                }
+                if(obstacles3D.length === 0) spawnContainer3D();
+            }
+
+            if (bossActive && bossInstance && bossInstance.mesh) {
+                let b = bossInstance;
+                if(b.mesh.position.z < -10) b.mesh.position.z += b.speed;
+                else {
+                    b.mesh.position.x += 0.05 * b.moveDir;
+                    if(b.mesh.position.x < -bridgeWidth/2 + b.r || b.mesh.position.x > bridgeWidth/2 - b.r) b.moveDir *= -1;
+                }
+                
+                for (let bIdx = bullets3D.length - 1; bIdx >= 0; bIdx--) {
+                    let bul = bullets3D[bIdx];
+                    let dx = b.mesh.position.x - bul.mesh.position.x; let dz = b.mesh.position.z - bul.mesh.position.z;
+                    let dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist < b.r + 1.5) { 
+                        scene.remove(bul.mesh); bullets3D.splice(bIdx, 1); 
+                        b.hp -= bul.damage; 
+                        triggerParticles3D(bul.mesh.position, '#ef4444', 3); 
+                    }
+                }
+                if(b.hp <= 0) { nextStageTrigger3D(); return; }
+            }
+
+            // ★ 좀비 충돌 및 자동 폐기 로직 보완
+            for (let zIdx = zombies3D.length - 1; zIdx >= 0; zIdx--) {
+                let z = zombies3D[zIdx]; 
+                z.mesh.position.z += z.speed;
+                let isDestroyed = false;
+
+                // 총알 판정 꼬임 방지를 위해 역순 탐색으로 변경
+                for (let bIdx = bullets3D.length - 1; bIdx >= 0; bIdx--) {
+                    let b = bullets3D[bIdx];
+                    let dx = z.mesh.position.x - b.mesh.position.x; 
+                    let dz = z.mesh.position.z - b.mesh.position.z;
+                    let dist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (dist < z.r + 0.5) { 
+                        scene.remove(b.mesh); 
+                        bullets3D.splice(bIdx, 1); 
+                        z.hp -= b.damage; 
+                        triggerParticles3D(z.mesh.position, '#ef4444', 2); 
+                        
+                        if (z.hp <= 0) { 
+                            scene.remove(z.mesh); 
+                            zombies3D.splice(zIdx, 1); 
+                            score += 50; 
+                            isDestroyed = true;
+                            break; 
+                        }
+                    }
+                }
+                if(isDestroyed) continue;
+                
+                let dToLeader = z.mesh.position.distanceTo(new THREE.Vector3(player.x, 0.5, player.z));
+                if (dToLeader < z.r + 0.8) {
+                    scene.remove(z.mesh); 
+                    zombies3D.splice(zIdx, 1); 
+                    totalSoldierCount -= 2; 
+                    buildSoldiers3D();
+                    continue;
+                }
+
+                // ★ 핵심 버그 픽스: 플레이어 뒤로 넘어간 좀비를 삭제해 무한 대기 현상 방지
+                if (z.mesh.position.z > player.z + 5) {
+                    scene.remove(z.mesh);
+                    zombies3D.splice(zIdx, 1);
+                }
+            }
+
+            if(!bossSpawned && zombies3D.length === 0) spawnZombieWave3D();
+            
+            if(totalSoldierCount <= 0 && !gameOver) { 
+                gameOver = true; 
+                systemAlert.innerHTML = `<span style="color:#ef4444; font-size:32px; text-shadow: 0 0 10px #000;">MISSION FAILED</span><br><span style="font-size:14px;color:#94a3b8; text-shadow: 0 0 5px #000;">병력이 모두 전멸했습니다...</span>`;
+                systemAlert.style.display = "block";
+                
+                setTimeout(() => { returnToTitle(); }, 3000);
+            }
+            
+            countUI.innerText = totalSoldierCount; scoreUI.innerText = score; updateLabels3D();
+        }
+
+        function onWindowResize() {
+            if(!isGameStarted) return;
+            camera.aspect = wrapper.clientWidth / wrapper.clientHeight; camera.updateProjectionMatrix();
+            renderer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate); if(isGameStarted) update();
+            if(renderer && scene && camera) renderer.render(scene, camera); 
+        }
+
+        window.onload = () => { startBtn.addEventListener('click', startActualGame); };
+    </script>
+</body>
+</html>
