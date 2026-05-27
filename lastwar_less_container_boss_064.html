@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Last Base: Zombie Frontline - Optimized</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MD2Loader } from 'three/addons/loaders/MD2Loader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+window.GLTFLoader = GLTFLoader;
+window.MD2Loader = MD2Loader;
+window.SkeletonUtils = SkeletonUtils;
+window.dispatchEvent(new Event('gltf-loader-ready'));
+window.dispatchEvent(new Event('md2-loader-ready'));
+</script>
+<style>
+:root{
+  --bg:#071421;--panel:rgba(8,17,29,.88);--panel2:rgba(20,38,60,.88);
+  --line:rgba(255,255,255,.14);--text:#f4f8ff;--muted:#98a9bf;
+  --blue:#4aa3ff;--red:#ff4d5f;--green:#39d98a;--yellow:#ffcc4d;
+}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{margin:0;min-height:100vh;min-height:100dvh;background:radial-gradient(circle at top,#153c5a 0,#06111d 56%,#02060b 100%);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+.app{width:100vw;height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center;padding:16px}
+.phone-frame{width:min(100%,460px);height:min(100%,860px);max-height:100vh;max-height:100dvh;border:1px solid var(--line);border-radius:28px;background:rgba(3,8,14,.84);box-shadow:0 24px 80px rgba(0,0,0,.54);overflow:hidden;position:relative}
+.screen{width:100%;height:100%;min-height:0;display:none;padding:18px;overflow:hidden}.screen.active{display:flex}
+.start-screen,.result-screen{flex-direction:column;justify-content:space-between;gap:18px}
+.start-screen{background:linear-gradient(180deg,rgba(2,8,16,.16),rgba(2,8,16,.72)),url("https://choi586.github.io/other/lastimg.png") center/cover no-repeat}
+.start-screen .hero-area{display:none!important}
+.start-screen .menu-panel{position:relative;z-index:1;margin-top:auto;background:rgba(5,10,18,.18);border-color:rgba(255,255,255,.18);backdrop-filter:blur(4px)}
+.start-screen .small-footer{display:none}
+.hero-area{padding-top:28px;text-align:center}.badge{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.07);color:var(--muted);font-size:13px}
+h1{margin:18px 0 8px;font-size:clamp(34px,9vw,50px);line-height:.96;letter-spacing:-1.5px}.subtitle{margin:0 auto;max-width:330px;color:var(--muted);font-size:15px;line-height:1.55}
+.info-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:28px}.info-card{min-height:76px;padding:12px 8px;border:1px solid var(--line);border-radius:18px;background:var(--panel);text-align:center}.info-card strong{display:block;font-size:20px;margin-bottom:4px}.info-card span{color:var(--muted);font-size:12px}
+.menu-panel,.result-panel{padding:16px;border:1px solid var(--line);border-radius:24px;background:var(--panel)}
+button{font-family:inherit}.primary-btn,.secondary-btn,.control-btn{border:0;color:white;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}.primary-btn{width:100%;padding:17px 18px;border-radius:18px;background:linear-gradient(135deg,#2387ff,#4aa3ff);box-shadow:0 14px 30px rgba(74,163,255,.28);font-size:17px}.secondary-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.secondary-btn{padding:14px 12px;border-radius:16px;background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--muted);font-size:14px}.small-footer{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45;text-align:center}
+.battle-screen{flex-direction:column;gap:10px;padding:10px;background:linear-gradient(180deg,#061322,#02070d);position:relative}
+.top-ui{position:relative;z-index:12;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;pointer-events:none;flex:0 0 auto}
+.stat{border:1px solid rgba(255,255,255,.18);border-radius:13px;background:rgba(5,11,20,.72);backdrop-filter:blur(8px);padding:7px 3px;text-align:center}.stat .label{display:block;color:#c7d8ef;font-size:10px;margin-bottom:2px}.stat .value{display:block;font-size:12px;font-weight:900}
+.battle-field-wrap{flex:1 1 auto;min-height:0;border:1px solid rgba(255,255,255,.16);border-radius:24px;background:#071421;position:relative;overflow:hidden;box-shadow:inset 0 0 32px rgba(0,0,0,.45)}
+#threeContainer{width:100%;height:100%;display:block;touch-action:none;position:absolute;inset:0}
+#threeContainer canvas{width:100%!important;height:100%!important;display:block!important}
+.battle-note{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:13;padding:6px 10px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(0,0,0,.35);color:#dbeafe;font-size:12px;white-space:nowrap;pointer-events:none}
+.boss-hp-number{position:absolute;top:82px;right:16px;left:auto;transform:none;z-index:14;display:none;min-width:92px;padding:7px 14px;border:2px solid rgba(255,255,255,.72);border-radius:999px;background:rgba(120,0,18,.78);color:#fff;font-size:24px;font-weight:1000;line-height:1;text-align:center;text-shadow:0 3px 0 rgba(0,0,0,.75),0 0 12px rgba(255,70,90,.75);box-shadow:0 8px 18px rgba(0,0,0,.42);pointer-events:none}
+.controls{position:absolute;left:50%;bottom:max(12px,calc(env(safe-area-inset-bottom) + 10px));transform:translateX(-50%);z-index:30;display:flex;justify-content:center;pointer-events:none}.control-btn{height:62px;min-width:118px;border-radius:22px;background:var(--panel2);border:1px solid var(--line);font-size:20px;box-shadow:0 12px 28px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.1);pointer-events:auto}.control-btn:active{transform:scale(.98);background:rgba(74,163,255,.24)}.skill-btn{font-size:18px;background:linear-gradient(135deg,rgba(255,204,77,.32),rgba(74,163,255,.28));backdrop-filter:blur(8px)}.skill-btn:disabled{opacity:.55;cursor:not-allowed;filter:grayscale(1)}
+.back-btn{position:absolute;top:14px;right:14px;z-index:22;width:40px;height:40px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:white;font-weight:900;cursor:pointer}
+.result-title{font-size:34px;line-height:1.05;text-align:center;margin:60px 0 8px}.result-sub{color:var(--muted);text-align:center;line-height:1.55}.reward-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.reward-card{border:1px solid var(--line);background:rgba(255,255,255,.06);border-radius:18px;padding:14px 8px;text-align:center}.reward-card strong{display:block;font-size:22px}.reward-card span{font-size:12px;color:var(--muted)}
+.hero-select-screen,.base-screen{flex-direction:column;gap:14px;position:relative}.hero-select-head,.base-head{text-align:center;padding:34px 8px 4px}.hero-select-head h2,.base-head h2{font-size:34px;margin:12px 0 8px}.hero-select-head p{margin:0 auto;color:var(--muted);font-size:14px;line-height:1.5;max-width:340px}.hero-card-list,.upgrade-list{display:grid;gap:10px;overflow:auto;padding:2px 0 6px;min-height:0}.hero-card{border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.06);padding:14px;display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center}.hero-card.selected{border-color:rgba(74,163,255,.9);background:rgba(74,163,255,.16);box-shadow:0 0 0 2px rgba(74,163,255,.16) inset}.hero-icon{width:48px;height:48px;border-radius:16px;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font-size:26px}.hero-card strong{display:block;font-size:16px;margin-bottom:4px}.hero-card span{display:block;color:var(--muted);font-size:12px;line-height:1.35}.hero-tag{padding:6px 9px;border-radius:999px;background:rgba(255,255,255,.08);font-size:11px;color:var(--muted);font-weight:800;border:1px solid var(--line);cursor:pointer}.hero-tag:disabled{opacity:.4;cursor:not-allowed}
+.resource-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.resource-chip{border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.06);padding:10px 6px;text-align:center}.resource-chip strong{display:block;font-size:16px}.resource-chip span{font-size:11px;color:var(--muted)}
+.upgrade-card{border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.06);padding:14px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.upgrade-card strong{display:block;font-size:16px;margin-bottom:4px}.upgrade-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.4}.upgrade-card button{border:0;border-radius:14px;padding:12px 10px;background:linear-gradient(135deg,#2387ff,#4aa3ff);color:white;font-weight:900;cursor:pointer}.upgrade-card button:disabled{background:rgba(255,255,255,.08);color:#6f7b8e;cursor:not-allowed}
+.three-error{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;background:#06101d;color:#fff;z-index:50}
+@media(max-width:520px){
+  .app{padding:0;height:100dvh;align-items:stretch;justify-content:stretch}
+  .phone-frame{width:100%;height:100dvh;max-height:100dvh;border-radius:0;border:0}
+  .screen{padding:12px;padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  .battle-screen{gap:7px;padding:8px;padding-top:max(6px,env(safe-area-inset-top));padding-bottom:0}
+  .top-ui{gap:4px;grid-template-columns:repeat(5,minmax(0,1fr))}
+  .stat{padding:5px 2px;border-radius:11px}
+  .stat .label{font-size:9px}
+  .stat .value{font-size:11px}
+  .battle-field-wrap{border-radius:18px;min-height:0}
+  .battle-note{top:7px;font-size:11px;padding:5px 8px;max-width:88%;overflow:hidden;text-overflow:ellipsis}
+  .controls{bottom:max(8px,calc(env(safe-area-inset-bottom) + 8px))}
+  .control-btn{height:54px;min-width:112px;border-radius:18px;font-size:17px}
+  .start-screen .menu-panel{margin-bottom:max(8px,env(safe-area-inset-bottom))}
+}
+</style>
+</head>
+<body>
+<div class="app"><main class="phone-frame">
+<section id="startScreen" class="screen start-screen active">
+  <div class="hero-area"><div class="badge"></div><h1>Last Base:<br>Zombie Frontline</h1><p class="subtitle"></p><div class="info-cards"><div class="info-card"><strong id="startStage">1</strong><span>Stage</span></div><div class="info-card"><strong id="startSoldiers">20</strong><span>Soldiers</span></div><div class="info-card"><strong id="startRifles">0</strong><span>Rifles</span></div></div></div>
+  <div class="menu-panel"><button class="primary-btn" id="startBattleBtn">전투 시작</button><div class="secondary-row"><button class="secondary-btn" id="heroBtn">영웅 화면</button><button class="secondary-btn" id="baseBtn">기지 화면</button></div><p class="small-footer">시작화면 배경 이미지를 적용했습니다.</p></div>
+</section>
+
+<section id="battleScreen" class="screen battle-screen">
+  <button class="back-btn" id="backBtn">×</button>
+  <div class="top-ui"><div class="stat"><span class="label">STAGE</span><span class="value" id="uiStage">1</span></div><div class="stat"><span class="label">병력</span><span class="value" id="uiSoldiers">20</span></div><div class="stat"><span class="label">점수</span><span class="value" id="uiScore">0</span></div><div class="stat"><span class="label">라이플</span><span class="value" id="uiRifles">0</span></div><div class="stat"><span class="label">영웅</span><span class="value" id="uiHero">방어</span></div></div>
+  <div class="battle-field-wrap"><div class="battle-note" id="battleNote">좀비를 처치해 라이플을 모으세요</div><div id="bossHpNumber" class="boss-hp-number"></div><div id="threeContainer"></div><div id="threeError" class="three-error">Three.js 라이브러리를 불러오지 못했습니다.<br>인터넷 연결 후 다시 열어주세요.</div></div>
+  <div class="controls"><button class="control-btn skill-btn" id="skillBtn">폭격</button></div>
+</section>
+
+<section id="heroScreen" class="screen hero-select-screen">
+  <button class="back-btn" id="heroBackBtn">×</button>
+  <div class="hero-select-head"><div class="badge">🧬 HERO SELECT</div><h2>영웅 선택</h2><p>자원과 라이플로 영웅을 레벨업할 수 있습니다. 레벨이 오르면 영웅 효과가 강해집니다.</p></div>
+  <div class="hero-card-list" id="heroCardList"></div>
+  <div class="menu-panel"><button class="primary-btn" id="heroStartBtn">선택한 영웅으로 전투 시작</button><p class="small-footer">방어형은 생존, 공격형은 처치, 지원형은 게이트 성장에 유리합니다.</p></div>
+</section>
+
+<section id="clearScreen" class="screen result-screen"><div><h2 class="result-title">STAGE CLEAR</h2><p class="result-sub">보스를 처치했습니다. 획득한 자원과 라이플로 기지를 업그레이드할 수 있습니다.</p><div class="reward-grid"><div class="reward-card"><strong id="foodReward">0</strong><span>식량</span></div><div class="reward-card"><strong id="metalReward">0</strong><span>금속</span></div><div class="reward-card"><strong id="fuelReward">0</strong><span>연료</span></div><div class="reward-card"><strong id="rifleReward">0</strong><span>라이플</span></div></div></div><div class="result-panel"><button class="primary-btn" id="nextStageBtn">다음 스테이지</button><button class="secondary-btn" id="clearBaseBtn" style="width:100%;margin-top:10px">기지 업그레이드</button><button class="secondary-btn" id="clearHomeBtn" style="width:100%;margin-top:10px">처음 화면</button></div></section>
+
+<section id="baseScreen" class="screen base-screen">
+  <button class="back-btn" id="baseBackBtn">×</button>
+  <div class="base-head"><div class="badge">🏗️ BASE UPGRADE</div><h2>기지 업그레이드</h2><p class="result-sub">좀비를 처치해 얻은 라이플과 클리어 보상으로 전투 능력을 강화합니다.</p></div>
+  <div class="resource-strip"><div class="resource-chip"><strong id="baseFood">0</strong><span>식량</span></div><div class="resource-chip"><strong id="baseMetal">0</strong><span>금속</span></div><div class="resource-chip"><strong id="baseFuel">0</strong><span>연료</span></div><div class="resource-chip"><strong id="baseRifles">0</strong><span>라이플</span></div></div>
+  <div class="upgrade-list" id="upgradeList"></div>
+  <div class="menu-panel"><button class="primary-btn" id="baseStartBtn">전투 시작</button><p class="small-footer">드론 센터를 열면 전투 중 폭격 스킬을 사용할 수 있습니다.</p></div>
+</section>
+
+<section id="gameOverScreen" class="screen result-screen"><div><h2 class="result-title">GAME OVER</h2><p class="result-sub">병력이 모두 소진되었습니다. 게이트 선택과 좀비 처치를 다시 조정해보세요.</p><div class="reward-grid"><div class="reward-card"><strong id="overStage">1</strong><span>도달 스테이지</span></div><div class="reward-card"><strong id="overScore">0</strong><span>점수</span></div><div class="reward-card"><strong>0</strong><span>병력</span></div></div></div><div class="result-panel"><button class="primary-btn" id="retryBtn">다시 도전</button><button class="secondary-btn" id="overHomeBtn" style="width:100%;margin-top:10px">처음 화면</button></div></section>
+</main></div>
+
+<script>
+const GAME_CONFIG={startStage:1,startSoldiers:20,startScore:0,playerSpeed:7,playerWidth:62,playerHeight:62,selectedHeroId:"defender",heroName:"방어 지휘관",lanes:3,minSoldiers:1,maxSoldiers:Number.MAX_SAFE_INTEGER,gateWidth:158,gateHeight:82,gateSpeed:2.35,gateSpawnInterval:7600,gatePairGap:118,gateDangerChance:.58,gateOffsetMax:18,zombieSpawnInterval:2850,zombieSpeed:1.28,zombieEscapeDamage:3,collisionInvincibleMs:550,bulletSpeed:12.5,bulletWidth:7,bulletHeight:16,bulletDamage:1,bulletSpawnInterval:880,bossAppearMs:42000,bossWidth:118,bossHeight:92,bossSpeed:.52,bossHpBase:90,bossHpPerStage:44,bossDamage:14,bossScore:180,droneCooldownMs:10000,droneBaseDamage:8,droneDamagePerLevel:5};
+const STAGE_BALANCE=[
+  // 병력 수를 강제로 막지 않습니다. 대신 스테이지별 게이트 숫자를 낮춰 폭증을 완화합니다.
+  // 다음 스테이지로 넘어갈 때도 병력 수를 깎지 않고 그대로 유지합니다.
+  {gateAdd:[5,8,10],gateMult:[1.15,1.25],badSub:[4,7],enemyHpScale:4.5,containerHpScale:8.0,bossHpScale:8.0},
+  {gateAdd:[6,10,14],gateMult:[1.2,1.3],badSub:[6,10],enemyHpScale:9.5,containerHpScale:19.0,bossHpScale:16.0},
+  {gateAdd:[8,12,18],gateMult:[1.25,1.35],badSub:[8,14],enemyHpScale:16.0,containerHpScale:34.0,bossHpScale:28.0},
+  {gateAdd:[10,15,22],gateMult:[1.3,1.42],badSub:[10,18],enemyHpScale:25.0,containerHpScale:55.0,bossHpScale:45.0},
+  {gateAdd:[12,18,28],gateMult:[1.35,1.5],badSub:[14,24],enemyHpScale:38.0,containerHpScale:82.0,bossHpScale:68.0},
+  {gateAdd:[15,22,34],gateMult:[1.4,1.55],badSub:[18,30],enemyHpScale:54.0,containerHpScale:120.0,bossHpScale:100.0}
+];
+const GATE_LIBRARY=[{type:"add",label:"+5",value:5,kind:"good"},{type:"add",label:"+10",value:10,kind:"good"},{type:"add",label:"+15",value:15,kind:"good"},{type:"multiply",label:"×1.25",value:1.25,kind:"good"},{type:"subtract",label:"-5",value:5,kind:"bad"},{type:"subtract",label:"-10",value:10,kind:"bad"},{type:"divide",label:"÷2",value:2,kind:"bad"}];
+const GOOD_GATES=GATE_LIBRARY.filter(function(g){return g.kind==="good"}),BAD_GATES=GATE_LIBRARY.filter(function(g){return g.kind==="bad"});
+const ZOMBIE_LIBRARY=[{type:"normal",hp:2,damage:3,speed:1,size:46,score:14,rifles:0,color:0xd44848},{type:"fast",hp:2,damage:2,speed:1.32,size:40,score:16,rifles:0,color:0xff674d},{type:"big",hp:6,damage:8,speed:.68,size:58,score:34,rifles:0,color:0xb2263c},{type:"armored",hp:10,damage:10,speed:.55,size:64,score:52,rifles:0,color:0x801f35},{type:"container",hp:18,damage:5,speed:.42,size:72,score:70,rifles:4,color:0xb77a2b,isContainer:true}];
+const HERO_LIBRARY=[{id:"defender",name:"방어 지휘관",icon:"🛡️",role:"방어형",desc:"좀비와 보스에게 받는 피해 감소",baseDamageReduction:.30,damageReductionPerLevel:.05,baseAttackBonus:0,attackBonusPerLevel:0,baseGateBonus:0,gateBonusPerLevel:0},{id:"gunner",name:"화력 사령관",icon:"🔫",role:"공격형",desc:"총알 공격력 증가, 고체력 좀비 처치에 유리",baseDamageReduction:0,damageReductionPerLevel:0,baseAttackBonus:1,attackBonusPerLevel:1,baseGateBonus:0,gateBonusPerLevel:0},{id:"tactician",name:"전술 참모",icon:"📡",role:"지원형",desc:"좋은 게이트 효과 증가, 병력 성장에 유리",baseDamageReduction:0,damageReductionPerLevel:0,baseAttackBonus:0,attackBonusPerLevel:0,baseGateBonus:4,gateBonusPerLevel:2}];
+const BUILDING_LIBRARY=[{id:"training",name:"훈련소",icon:"🎖️",desc:"시작 병력 +5",cost:function(l){return{food:35+l*18,metal:0,fuel:0,rifles:0}}},{id:"armory",name:"무기고",icon:"🔫",desc:"총알 공격력 +1",cost:function(l){return{food:0,metal:30+l*20,fuel:0,rifles:4+l*2}}},{id:"wall",name:"방어벽",icon:"🧱",desc:"좀비 피해 추가 감소",cost:function(l){return{food:0,metal:45+l*24,fuel:0,rifles:2+l}}},{id:"supply",name:"보급소",icon:"📦",desc:"클리어 보상 증가",cost:function(l){return{food:25+l*18,metal:15+l*12,fuel:10+l*8,rifles:0}}},{id:"drone",name:"드론 센터",icon:"🚁",desc:"폭격 스킬 해금 및 피해 증가",cost:function(l){return{food:0,metal:35+l*25,fuel:35+l*20,rifles:5+l*3}}}];
+const state={screen:"start",stage:1,soldiers:20,score:0,selectedHero:"방어 지휘관",selectedHeroId:"defender",running:false,phase:"normal",battleStartTime:0,keys:{left:false,right:false},player:{x:0,y:0,width:62,height:62},gates:[],zombies:[],bullets:[],floatingTexts:[],boss:null,lastGateSpawnTime:0,lastZombieSpawnTime:0,lastBulletSpawnTime:0,lastHitTime:0,lastFrameTime:0,rewards:{food:0,metal:0,fuel:0,rifles:0},resources:{food:0,metal:0,fuel:0,rifles:0},buildings:{training:0,armory:0,wall:0,supply:0,drone:0},heroLevels:{defender:1,gunner:1,tactician:1},lastSkillTime:-999999,zombiesDefeatedThisStage:0};
+const $=function(id){return document.getElementById(id)};
+const screens={start:$("startScreen"),battle:$("battleScreen"),hero:$("heroScreen"),base:$("baseScreen"),clear:$("clearScreen"),over:$("gameOverScreen")};
+const ui={stage:$("uiStage"),soldiers:$("uiSoldiers"),score:$("uiScore"),rifles:$("uiRifles"),hero:$("uiHero"),startStage:$("startStage"),startSoldiers:$("startSoldiers"),startRifles:$("startRifles"),note:$("battleNote"),bossHp:$("bossHpNumber")};
+const container=$("threeContainer");
+let scene,camera,renderer,dynamicGroup,staticGroup,materials={},textCache={},threeReady=false;
+let allyLeader=null, allyMixer=null, allyClock=null, allyModelReady=false;
+let md2ZombieGeometry=null, md2ZombieTexture=null, md2ZombieReady=false;
+
+function initThree(){
+  if(!window.THREE){$("threeError").style.display="flex";return}
+  threeReady=true;
+  scene=new THREE.Scene();
+  scene.fog=new THREE.Fog(0x062337,28,68);
+  camera=new THREE.PerspectiveCamera(38,1,.1,140);
+  // 라스트워형 원근감: 화면 하단은 넓고, 상단으로 갈수록 좁아 보이도록
+  // 카메라를 낮은 사선 위치에 두고 활주로 중앙보다 약간 앞을 바라봅니다.
+  camera.position.set(0,16.5,23);
+  camera.lookAt(0,0,0.8);
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));
+  renderer.setClearColor(0x062337,1);
+  renderer.shadowMap.enabled=false;
+  container.innerHTML="";
+  container.appendChild(renderer.domElement);
+  dynamicGroup=new THREE.Group();staticGroup=new THREE.Group();
+  scene.add(staticGroup);scene.add(dynamicGroup);
+  const hemi=new THREE.HemisphereLight(0xbbe7ff,0x102030,2.2);scene.add(hemi);
+  const dir=new THREE.DirectionalLight(0xffffff,2.6);dir.position.set(-6,12,8);dir.castShadow=true;scene.add(dir);
+  materials.ocean=new THREE.MeshStandardMaterial({color:0x055f76,roughness:.8,metalness:.05});
+  materials.runway=new THREE.MeshStandardMaterial({color:0x9b9b93,roughness:.72,metalness:.08});
+  materials.edge=new THREE.MeshStandardMaterial({color:0x4e5965,roughness:.6,metalness:.1});
+  materials.blue=new THREE.MeshStandardMaterial({color:0x34a6ff,roughness:.38,metalness:.12,emissive:0x063a78,emissiveIntensity:.45});
+  materials.soldier=new THREE.MeshStandardMaterial({color:0x1f90ff,roughness:.42,metalness:.15,emissive:0x004eb0,emissiveIntensity:.28});
+  materials.red=new THREE.MeshStandardMaterial({color:0xd9414e,roughness:.48,metalness:.05,emissive:0x5a050d,emissiveIntensity:.25});
+  materials.yellow=new THREE.MeshBasicMaterial({color:0xffc84a,transparent:true,opacity:.45});
+  buildStaticScene();
+  allyClock=new THREE.Clock();
+  tryLoadSoldierModel();
+  tryLoadMD2ZombieModel();
+  resizeThree();
+}
+function buildStaticScene(){
+  staticGroup.clear();
+  const ocean=new THREE.Mesh(new THREE.PlaneGeometry(46,86,16,16),materials.ocean);
+  ocean.rotation.x=-Math.PI/2;ocean.position.y=-.18;ocean.receiveShadow=true;staticGroup.add(ocean);
+  const road=new THREE.Mesh(new THREE.BoxGeometry(8.8,.34,54),materials.runway);
+  road.position.set(0,0,0);road.receiveShadow=true;road.castShadow=true;staticGroup.add(road);
+  const leftEdge=new THREE.Mesh(new THREE.BoxGeometry(.22,.5,54),materials.edge);leftEdge.position.set(-4.55,.17,0);staticGroup.add(leftEdge);
+  const rightEdge=leftEdge.clone();rightEdge.position.x=4.55;staticGroup.add(rightEdge);
+  for(let i=0;i<3;i++){
+    const lane=new THREE.Mesh(new THREE.BoxGeometry(.04,.03,52),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.22}));
+    lane.position.set(-1.4+i*2.8,.2,0);staticGroup.add(lane);
+  }
+  for(let z=-20;z<22;z+=3.2){
+    const mark=new THREE.Mesh(new THREE.BoxGeometry(1.2,.035,.08),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.13}));
+    mark.position.set(0,.22,z);staticGroup.add(mark);
+  }
+  // 장식 컨테이너는 제거했습니다. 컨테이너는 이제 고체력 적군으로 등장합니다.
+  // 좌측 상단에 보이던 파란 드론 장식은 제거했습니다.
+}
+
+function tryLoadSoldierModel(){
+  if(allyModelReady || allyLeader)return;
+  if(!window.GLTFLoader){
+    window.addEventListener('gltf-loader-ready', tryLoadSoldierModel, {once:true});
+    setTimeout(tryLoadSoldierModel, 800);
+    return;
+  }
+  const loader=new window.GLTFLoader();
+  loader.load('https://threejs.org/examples/models/gltf/Soldier.glb', function(gltf){
+    allyLeader=gltf.scene;
+    allyLeader.name='ThreeJS_Soldier_Ally';
+    allyLeader.scale.set(1,1,1);
+    // 화면 상단을 향해 달리도록 기존 방향에서 180도 회전
+    allyLeader.rotation.y=0;
+    allyLeader.traverse(function(o){
+      if(o.isMesh){
+        o.castShadow=true;
+        o.receiveShadow=true;
+        if(o.material){
+          o.material.roughness=.55;
+          o.material.metalness=.05;
+        }
+      }
+    });
+    allyLeader.visible=false;
+    scene.add(allyLeader);
+    if(gltf.animations && gltf.animations.length){
+      allyMixer=new THREE.AnimationMixer(allyLeader);
+      const run=gltf.animations.find(function(a){return /run/i.test(a.name)}) || gltf.animations[0];
+      allyMixer.clipAction(run).play();
+    }
+    allyModelReady=true;
+  }, undefined, function(){
+    allyModelReady=false;
+  });
+}
+
+function tryLoadMD2ZombieModel(){
+  if(md2ZombieReady || md2ZombieGeometry)return;
+  if(!window.MD2Loader){
+    window.addEventListener('md2-loader-ready', tryLoadMD2ZombieModel, {once:true});
+    setTimeout(tryLoadMD2ZombieModel, 800);
+    return;
+  }
+  const texLoader=new THREE.TextureLoader();
+  md2ZombieTexture=texLoader.load('https://threejs.org/examples/models/md2/ogro/ogrobase.png');
+  md2ZombieTexture.colorSpace=THREE.SRGBColorSpace;
+  const loader=new window.MD2Loader();
+  loader.load('https://threejs.org/examples/models/md2/ogro/ogro.md2', function(geometry){
+    geometry.computeVertexNormals();
+    md2ZombieGeometry=geometry;
+    md2ZombieReady=true;
+  }, undefined, function(){
+    md2ZombieReady=false;
+  });
+}
+
+function makeDroneModel(){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.65,.22,.42),materials.blue);g.add(body);
+  const rotorMat=new THREE.MeshBasicMaterial({color:0xbfeaff,transparent:true,opacity:.45});
+  [[-.55,0,-.4],[.55,0,-.4],[-.55,0,.4],[.55,0,.4]].forEach(function(p){
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.8,8),materials.blue);arm.rotation.z=Math.PI/2;arm.position.set(p[0]/2,.03,p[2]);g.add(arm);
+    const r=new THREE.Mesh(new THREE.CircleGeometry(.24,24),rotorMat);r.rotation.x=-Math.PI/2;r.position.set(p[0],.15,p[2]);g.add(r);
+  });
+  return g;
+}
+function resizeThree(){
+  if(!threeReady)return;
+  const r=container.getBoundingClientRect();
+  renderer.setSize(r.width,r.height,true);
+  renderer.domElement.style.width='100%';
+  renderer.domElement.style.height='100%';
+  renderer.domElement.style.display='block';
+  camera.aspect=r.width/r.height;
+  camera.fov=38;
+  camera.updateProjectionMatrix();
+}
+function pxToWorld(x,y){
+  const w=container.clientWidth||1,h=container.clientHeight||1;
+  // 2D 게임 좌표를 활주로 중앙 기준 3D 좌표로 안정적으로 변환합니다.
+  // 기존 버전은 카메라 원근과 CSS 캔버스 크기가 맞지 않아 전장이 오른쪽으로 밀렸습니다.
+  return {
+    // 하단의 플레이어가 크게 보이고, 상단 오브젝트가 원근감 있게 작아지도록
+    // y 좌표는 카메라 가까운 쪽(+z)과 먼 쪽(-z)으로 매핑합니다.
+    x:(x/w-.5)*7.25,
+    z:(y/h-.5)*30.5
+  };
+}
+function makeTextTexture(text,bg,fg){
+  const key=text+bg+fg;if(textCache[key])return textCache[key];
+  const c=document.createElement("canvas");c.width=256;c.height=128;const g=c.getContext("2d");
+  g.fillStyle=bg;g.fillRect(0,0,256,128);
+  g.strokeStyle="rgba(255,255,255,.9)";g.lineWidth=8;g.strokeRect(5,5,246,118);
+  g.fillStyle=fg;g.font="900 54px system-ui";g.textAlign="center";g.textBaseline="middle";g.fillText(text,128,58);
+  g.font="800 18px system-ui";g.fillText(bg.indexOf("28")>-1?"POWER":"DANGER",128,99);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;textCache[key]=tex;return tex;
+}
+function roundedBox(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;m.receiveShadow=true;return m}
+function makePlayerGroup(){
+  const g=new THREE.Group();
+  const aura=new THREE.Mesh(new THREE.RingGeometry(.82,1.35,48),materials.yellow);
+  aura.rotation.x=-Math.PI/2;
+  aura.position.y=.035;
+  g.add(aura);
+  return g;
+}
+function makeContainerGroup(z){
+  const g=new THREE.Group();
+  const baseMat=new THREE.MeshStandardMaterial({color:0xb77a2b,roughness:.68,metalness:.05,emissive:0x3a2108,emissiveIntensity:.12});
+  const darkMat=new THREE.MeshStandardMaterial({color:0x6d471d,roughness:.8,metalness:.02});
+  for(let i=0;i<3;i++){
+    const box=new THREE.Mesh(new THREE.BoxGeometry(.78,.78,.92),baseMat);
+    box.position.set((i-1)*.82,.45,0);
+    box.castShadow=true;box.receiveShadow=true;g.add(box);
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.05,.8,.94),darkMat);
+    stripe.position.set((i-1)*.82+.25,.47,.01);g.add(stripe);
+  }
+  const hpRate=Math.max(0,z.hp/z.maxHp);
+  const hpBg=new THREE.Mesh(new THREE.BoxGeometry(3.35,.12,.08),new THREE.MeshBasicMaterial({color:0x260c0c}));hpBg.position.set(0,1.18,.68);g.add(hpBg);
+  const hp=new THREE.Mesh(new THREE.BoxGeometry(3.35*hpRate,.13,.09),new THREE.MeshBasicMaterial({color:0xff334a}));hp.position.set(-1.675+1.675*hpRate,1.25,.69);g.add(hp);
+  return g;
+}
+function makeZombieGroup(z){
+  if(md2ZombieReady && md2ZombieGeometry){
+    const g=new THREE.Group();
+    const mat=new THREE.MeshStandardMaterial({
+      map:md2ZombieTexture||null,
+      color:0xff6b72,
+      roughness:.62,
+      metalness:.02,
+      emissive:0x3c0008,
+      emissiveIntensity:.18,
+      morphTargets:true
+    });
+    const mesh=new THREE.Mesh(md2ZombieGeometry,mat);
+    const scale=(z.size/48)*.048;
+    mesh.scale.set(scale,scale,scale);
+    // 화면 하단(+z)을 향하도록 방향을 돌립니다.
+    mesh.rotation.y=-Math.PI/2;
+    // 일반 적군은 현재 고도를 유지하되, 가볍게만 흔들어 움직임을 줍니다.
+    mesh.position.y=.92 + Math.sin(performance.now()*.004 + (z.x||0)*.02)*.035;
+    // 전체 morph frame을 순환하면 쓰러지는 듯 과격하게 보여서 사용하지 않습니다.
+    if(mesh.morphTargetInfluences && mesh.morphTargetInfluences.length){
+      for(let i=0;i<mesh.morphTargetInfluences.length;i++)mesh.morphTargetInfluences[i]=0;
+      mesh.morphTargetInfluences[0]=1;
+    }
+    mesh.castShadow=true;
+    mesh.receiveShadow=true;
+    g.add(mesh);
+    return g;
+  }
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color:z.color,roughness:.52,metalness:.03,emissive:0x4b0007,emissiveIntensity:.24});
+  const scale=z.size/48;
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.22*scale,.62*scale,4,10),mat);body.position.y=.55*scale;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.18*scale,14,10),mat);head.position.y=1.02*scale;head.castShadow=true;g.add(head);
+  const armL=new THREE.Mesh(new THREE.BoxGeometry(.12*scale,.5*scale,.12*scale),mat);armL.position.set(-.3*scale,.66*scale,.05);armL.rotation.z=.45;g.add(armL);
+  const armR=armL.clone();armR.position.x=.3*scale;armR.rotation.z=-.45;g.add(armR);
+  g.rotation.y=-Math.PI/2;
+  return g;
+}
+function makeGateMesh(gate){
+  const bg=gate.kind==="good"?"rgb(28,140,255)":"rgb(210,42,64)";
+  const tex=makeTextTexture(gate.label,bg,"white");
+  const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(3.38,1.68),mat);
+  mesh.rotation.x=-.22;
+  const base=new THREE.Mesh(new THREE.BoxGeometry(3.52,.16,.46),gate.kind==="good"?materials.blue:materials.red);
+  base.position.y=-.83;
+  mesh.add(base);
+  return mesh;
+}
+const BULLET_RENDER_CACHE={coreGeo:null,headGeo:null,coreMat:null,headMat:null,haloGeo:null,haloMat:null};
+function makeBulletMesh(){
+  if(!BULLET_RENDER_CACHE.coreGeo){
+    BULLET_RENDER_CACHE.coreGeo=new THREE.CylinderGeometry(.075,.075,.68,10);
+    BULLET_RENDER_CACHE.headGeo=new THREE.SphereGeometry(.12,12,8);
+    BULLET_RENDER_CACHE.haloGeo=new THREE.SphereGeometry(.22,12,8);
+    BULLET_RENDER_CACHE.coreMat=new THREE.MeshBasicMaterial({color:0xffc247});
+    BULLET_RENDER_CACHE.headMat=new THREE.MeshBasicMaterial({color:0xfff1a6,transparent:true,opacity:.95});
+    BULLET_RENDER_CACHE.haloMat=new THREE.MeshBasicMaterial({color:0xff9f1c,transparent:true,opacity:.18,depthWrite:false});
+  }
+  const g=new THREE.Group();
+  const core=new THREE.Mesh(BULLET_RENDER_CACHE.coreGeo,BULLET_RENDER_CACHE.coreMat);
+  core.rotation.x=Math.PI/2;
+  g.add(core);
+  const head=new THREE.Mesh(BULLET_RENDER_CACHE.headGeo,BULLET_RENDER_CACHE.headMat);
+  head.position.z=-.36;
+  g.add(head);
+  const halo=new THREE.Mesh(BULLET_RENDER_CACHE.haloGeo,BULLET_RENDER_CACHE.haloMat);
+  halo.position.z=-.36;
+  g.add(halo);
+  return g;
+}
+function makeBossGroup(){
+  const g=makeZombieGroup({size:118,color:0x9f2035});
+  g.scale.set(1.25,1.25,1.25);
+  const crown=new THREE.Mesh(new THREE.BoxGeometry(.9,.08,.18),new THREE.MeshBasicMaterial({color:0xff4d5f}));crown.position.y=1.75;g.add(crown);
+  return g;
+}
+
+function renderBulletsInstanced(){
+  const activeBullets=state.bullets.filter(function(b){return !b.used});
+  if(!activeBullets.length)return;
+  const geo=new THREE.CylinderGeometry(.055,.055,.62,8);
+  const mat=new THREE.MeshBasicMaterial({color:0xffc247});
+  const mesh=new THREE.InstancedMesh(geo,mat,activeBullets.length);
+  const dummy=new THREE.Object3D();
+  for(let i=0;i<activeBullets.length;i++){
+    const b=activeBullets[i];
+    const pos=pxToWorld(b.x+b.width/2,b.y+b.height/2);
+    dummy.position.set(pos.x,.62,pos.z);
+    dummy.rotation.x=Math.PI/2;
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i,dummy.matrix);
+  }
+  dynamicGroup.add(mesh);
+}
+
+function getAllySoldierCount(){
+  return Math.max(1,Math.min(6,Math.ceil(state.soldiers/7)));
+}
+function renderAllySoldiers(p){
+  const count=getAllySoldierCount();
+  const offsets=[
+    [0,0],[-.42,.42],[.42,.42],[-.62,-.18],[.62,-.18],[0,.78]
+  ];
+  for(let i=0;i<count;i++){
+    let soldier=null;
+    if(allyModelReady && allyLeader && window.SkeletonUtils){
+      soldier=window.SkeletonUtils.clone(allyLeader);
+      soldier.visible=true;
+      soldier.scale.set(.9,.9,.9);
+      soldier.rotation.y=0;
+      soldier.traverse(function(o){if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+    }else{
+      soldier=new THREE.Group();
+      const body=new THREE.Mesh(new THREE.CapsuleGeometry(.16,.55,5,10),materials.soldier);
+      body.position.y=.42;body.castShadow=true;soldier.add(body);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(.14,12,8),new THREE.MeshStandardMaterial({color:0xd9eaff,roughness:.4}));
+      head.position.y=.84;head.castShadow=true;soldier.add(head);
+    }
+    const off=offsets[i]||[0,0];
+    soldier.position.set(p.x+off[0],.16,p.z+off[1]);
+    dynamicGroup.add(soldier);
+  }
+  const badge=makeSpriteText(formatNumber(state.soldiers),'#ffffff',.98);
+  badge.position.set(p.x,2.32,p.z-.25);
+  badge.scale.set(2.35,.82,1);
+  dynamicGroup.add(badge);
+}
+
+function renderThree(t){
+  if(!threeReady)return;
+  dynamicGroup.clear();
+  const p=pxToWorld(state.player.x+state.player.width/2,state.player.y+state.player.height/2);
+  if(allyMixer && allyClock){allyMixer.update(Math.min(.04, allyClock.getDelta()));}
+  if(allyLeader){allyLeader.visible=false;}
+  const player=makePlayerGroup();player.position.set(p.x,.2,p.z);player.scale.set(1.15,1.15,1.15);dynamicGroup.add(player);
+  renderAllySoldiers(p);
+  state.gates.forEach(function(g){
+    const pos=pxToWorld(g.x+g.width/2,g.y+g.height/2);const m=makeGateMesh(g);m.position.set(pos.x,1.04,pos.z);dynamicGroup.add(m);
+  });
+  state.zombies.forEach(function(z){
+    const pos=pxToWorld(z.x+z.width/2,z.y+z.height/2);
+    const m=z.isContainer?makeContainerGroup(z):makeZombieGroup(z);
+    m.position.set(pos.x,z.isContainer?.05:.78,pos.z);
+    if(!z.isContainer && !(md2ZombieReady && md2ZombieGeometry))m.rotation.y=0;
+    if(z.isContainer)m.scale.set(2.05,2.05,2.05);
+    dynamicGroup.add(m);
+    // 모든 적군의 남은 체력을 숫자로 표시합니다.
+    const hpText=makeSpriteText(String(Math.max(0,Math.ceil(z.hp))),'#ffffff',1);
+    if(z.isContainer){
+      hpText.position.set(pos.x,3.18,pos.z+.9);
+      hpText.scale.set(2.85,.82,1);
+    }else{
+      hpText.position.set(pos.x,2.02,pos.z+.66);
+      hpText.scale.set(2.25,.68,1);
+    }
+    dynamicGroup.add(hpText);
+    if(z.maxHp>1&&!z.isContainer){
+      const hpRate=Math.max(0,z.hp/z.maxHp);
+      const hpBg=new THREE.Mesh(new THREE.BoxGeometry(1.45,.08,.07),new THREE.MeshBasicMaterial({color:0x102014}));
+      hpBg.position.set(pos.x,1.55,pos.z+.62);dynamicGroup.add(hpBg);
+      const hp=new THREE.Mesh(new THREE.BoxGeometry(1.45*hpRate,.09,.08),new THREE.MeshBasicMaterial({color:0x80ff9f}));
+      hp.position.set(pos.x-.725+.725*hpRate,1.59,pos.z+.63);dynamicGroup.add(hp);
+    }
+  });
+  renderBulletsInstanced();
+  if(state.boss&&state.boss.active){
+    const pos=pxToWorld(state.boss.x+state.boss.width/2,state.boss.y+state.boss.height/2);
+    const m=makeBossGroup();
+    m.position.set(pos.x,2.25,pos.z);
+    dynamicGroup.add(m);
+  }
+  updateBossHpOverlay();
+  state.floatingTexts.forEach(function(ft){const pos=pxToWorld(ft.x,ft.y);const sprite=makeSpriteText(ft.text,ft.kind==="good"?"#7dffb8":"#ff9aa6",Math.max(0.15,ft.life/520));sprite.position.set(pos.x,1.75,pos.z);dynamicGroup.add(sprite)});
+  const sway=Math.sin(t*.001)*.035;staticGroup.position.x=sway;
+  // 플레이어를 아주 약하게 따라가되, 화면이 흔들리지 않게 중앙성을 유지합니다.
+  camera.position.x += (p.x*0.055 - camera.position.x)*0.035;
+  camera.lookAt(camera.position.x*0.25,0,0.8);
+  renderer.render(scene,camera);
+}
+function updateBossHpOverlay(){
+  if(!ui.bossHp)return;
+  if(state.boss&&state.boss.active){
+    ui.bossHp.style.display='block';
+    ui.bossHp.textContent=String(Math.max(0,Math.ceil(state.boss.hp)));
+  }else{
+    ui.bossHp.style.display='none';
+    ui.bossHp.textContent='';
+  }
+}
+const SPRITE_TEXT_CACHE={};
+function makeSpriteText(text,color,alpha){
+  const stableAlpha=(alpha>=.95)?1:null;
+  const key=stableAlpha!==null ? (text+'|'+color+'|'+stableAlpha) : null;
+  if(key && SPRITE_TEXT_CACHE[key]){
+    const cached=SPRITE_TEXT_CACHE[key];
+    const spr=new THREE.Sprite(cached);
+    spr.scale.set(1.9,.56,1);
+    return spr;
+  }
+  const c=document.createElement("canvas");c.width=384;c.height=112;const g=c.getContext("2d");
+  g.font="900 54px system-ui";g.textAlign="center";g.textBaseline="middle";
+  g.lineWidth=10;g.strokeStyle="rgba(0,0,0,.82)";g.strokeText(text,192,56);
+  g.lineWidth=4;g.strokeStyle="rgba(255,255,255,.5)";g.strokeText(text,192,56);
+  g.fillStyle=color;g.fillText(text,192,56);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  const mat=new THREE.SpriteMaterial({map:tex,transparent:true,opacity:alpha,depthWrite:false});
+  if(key)SPRITE_TEXT_CACHE[key]=mat;
+  const spr=new THREE.Sprite(mat);spr.scale.set(1.9,.56,1);return spr;
+}
+function addBossHpBar(){
+  const b=state.boss,rate=Math.max(0,b.hp/b.maxHp);
+  const bg=new THREE.Mesh(new THREE.BoxGeometry(5.4,.11,.07),new THREE.MeshBasicMaterial({color:0x111111}));bg.position.set(0,2.7,-11.5);dynamicGroup.add(bg);
+  const hp=new THREE.Mesh(new THREE.BoxGeometry(5.4*rate,.12,.08),new THREE.MeshBasicMaterial({color:0xff334a}));hp.position.set(-2.7+2.7*rate,2.78,-11.5);dynamicGroup.add(hp);
+}
+function showScreen(name){Object.values(screens).forEach(function(s){s.classList.remove("active")});screens[name].classList.add("active");state.screen=name;state.running=name==="battle";if(name==="battle"){resizeThree();resetBattle();updateUI();requestAnimationFrame(gameLoop)}}
+function showOnly(name){Object.values(screens).forEach(function(s){s.classList.remove("active")});screens[name].classList.add("active");state.screen=name;state.running=false;if(allyLeader)allyLeader.visible=false;updateBossHpOverlay()}
+function resetBattlePosition(){const w=container.clientWidth,h=container.clientHeight;state.player.x=w/2-state.player.width/2;state.player.y=h-state.player.height-128}
+function resetBattle(){resetBattlePosition();if(camera){camera.position.set(0,16.5,23);camera.lookAt(0,0,0.8);}state.gates=[];state.zombies=[];state.bullets=[];state.floatingTexts=[];state.boss=null;updateBossHpOverlay();state.phase="normal";state.battleStartTime=0;state.lastGateSpawnTime=0;state.lastZombieSpawnTime=0;state.lastBulletSpawnTime=0;state.lastHitTime=0;state.lastFrameTime=0;ui.note.textContent="병력 수만큼 총알이 나갑니다. 컨테이너에서 라이플을 얻으세요";state.lastSkillTime=-999999;updateSkillButton()}
+function getStartSoldiers(){return GAME_CONFIG.startSoldiers+state.buildings.training*5}
+function getBaseBulletBonus(){return state.buildings.armory}
+function getBaseDamageReduction(){return Math.min(.45,state.buildings.wall*.06)}
+function getRewardMultiplier(){return 1+state.buildings.supply*.12}
+function updateUI(){ui.stage.textContent=state.stage;ui.soldiers.textContent=formatNumber(state.soldiers);ui.score.textContent=state.score;ui.rifles.textContent=state.resources.rifles;ui.hero.textContent=state.selectedHero.replace(" 지휘관","").replace(" 사령관","").replace(" 참모","");ui.startStage.textContent=state.stage;ui.startSoldiers.textContent=formatNumber(getStartSoldiers());ui.startRifles.textContent=state.resources.rifles;renderBaseResources();updateSkillButton()}
+function rand(min,max){return Math.random()*(max-min)+min}function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+function formatNumber(n){return Math.floor(n).toLocaleString("ko-KR");}
+function getStageBalance(){
+  const idx=Math.max(0,Math.min(STAGE_BALANCE.length-1,state.stage-1));
+  const base=STAGE_BALANCE[idx];
+  if(state.stage<=STAGE_BALANCE.length)return base;
+  const extra=state.stage-STAGE_BALANCE.length;
+  return{
+    gateAdd:base.gateAdd.map(function(v){return v+extra*3}),
+    gateMult:base.gateMult.map(function(v){return Math.min(1.65,+(v+extra*.03).toFixed(2))}),
+    badSub:base.badSub.map(function(v){return v+extra*4}),
+    enemyHpScale:base.enemyHpScale+extra*20,
+    containerHpScale:base.containerHpScale+extra*46,
+    bossHpScale:base.bossHpScale+extra*40
+  };
+}
+function makeStageGate(kind){
+  const bal=getStageBalance();
+  if(kind==="good"){
+    // 초반에는 병력 수가 작아서 ×1.25 같은 배율 게이트의 체감이 약합니다.
+    // 그래서 1~2스테이지는 + 게이트가 훨씬 자주 나오게 하고,
+    // ×2 게이트는 아주 낮은 확률의 보너스 게이트로만 둡니다.
+    const r=Math.random();
+    const x2Chance=state.stage<=2 ? .025 : .04;
+    const multChance=state.stage<=1 ? .06 : state.stage===2 ? .10 : .18;
+    if(r<x2Chance)return{type:"multiply",label:"×2",value:2,kind:"good"};
+    if(r<x2Chance+multChance){const m=pick(bal.gateMult);return{type:"multiply",label:"×"+m,value:m,kind:"good"};}
+    const v=pick(bal.gateAdd);return{type:"add",label:"+"+v,value:v,kind:"good"};
+  }
+  if(Math.random()<.22)return{type:"divide",label:"÷2",value:2,kind:"bad"};
+  const v=pick(bal.badSub);return{type:"subtract",label:"-"+v,value:v,kind:"bad"};
+}
+function getBulletCount(){
+  // 핵심 변경: 병력 수가 곧 한 번에 발사되는 총알 수입니다.
+  // 다만 너무 높은 병력에서 모바일 렉이 심해지는 것을 막기 위해 300발을 넘으면
+  // 초과 병력은 총알 피해 보정으로 압축합니다.
+  return Math.max(1,Math.min(state.soldiers,300));
+}
+function getBulletCompressionDamage(){
+  // 300명 초과 병력은 실제 총알 개수를 늘리는 대신 한 발당 추가 피해로 반영합니다.
+  return state.soldiers>300 ? Math.ceil((state.soldiers-300)/300) : 0;
+}
+function scaleEnemyHp(baseHp,isContainer){
+  const bal=getStageBalance();
+  const scale=isContainer?bal.containerHpScale:bal.enemyHpScale;
+  const currentSoldiers=Math.max(getStartSoldiers(),state.soldiers);
+  const soldierPressure=currentSoldiers*(isContainer?2.3:.65)*(1+state.stage*.18);
+  const upgradePressure=1+state.buildings.armory*.42+Math.floor(state.resources.rifles/10)*.18+getHeroStats().attackBonus*.22;
+  return Math.max(1,Math.ceil(baseHp*scale*upgradePressure+soldierPressure));
+}
+function getHeroLevel(id){return state.heroLevels[id]||1}
+function getSelectedHero(){return HERO_LIBRARY.find(function(h){return h.id===state.selectedHeroId})||HERO_LIBRARY[0]}
+function getHeroStats(hero){hero=hero||getSelectedHero();const level=getHeroLevel(hero.id);return{level:level,damageReduction:Math.min(.7,hero.baseDamageReduction+(level-1)*hero.damageReductionPerLevel),attackBonus:hero.baseAttackBonus+(level-1)*hero.attackBonusPerLevel,gateBonus:hero.baseGateBonus+(level-1)*hero.gateBonusPerLevel}}
+function getRifleDamageBonus(){return Math.floor(state.resources.rifles/18)}
+function getBulletDamage(){
+  // 병력 수만큼 총알이 나가므로, 기본 피해는 과하게 올리지 않습니다.
+  // 무기고/영웅/라이플 강화는 보정값으로만 반영합니다.
+  return GAME_CONFIG.bulletDamage+Math.floor(getBaseBulletBonus()/2)+Math.floor(getHeroStats().attackBonus/2)+getRifleDamageBonus()+getBulletCompressionDamage();
+}
+function getDamageAfterHero(amount){return Math.max(1,Math.ceil(amount*(1-getHeroStats().damageReduction-getBaseDamageReduction())))}
+function getGateBonus(){return getHeroStats().gateBonus}
+function getHeroLevelCost(id){const level=getHeroLevel(id);return{food:25+level*15,metal:20+level*12,fuel:10+level*8,rifles:3+level*2}}
+function formatHeroEffect(hero){const st=getHeroStats(hero);if(hero.id==="defender")return "피해 감소 "+Math.round(st.damageReduction*100)+"%";if(hero.id==="gunner")return "총알 공격력 +"+st.attackBonus;return "좋은 게이트 보너스 +"+st.gateBonus}
+function updatePlayer(){if(state.keys.left)state.player.x-=GAME_CONFIG.playerSpeed;if(state.keys.right)state.player.x+=GAME_CONFIG.playerSpeed;const maxX=container.clientWidth-state.player.width;state.player.x=Math.max(22,Math.min(maxX-22,state.player.x))}
+function makeGatePair(){let a,b;if(Math.random()<GAME_CONFIG.gateDangerChance){a=makeStageGate("good");b=makeStageGate("bad");if(Math.random()<.5){const tmp=a;a=b;b=tmp}}else{a=makeStageGate("good");b=Math.random()<.45?makeStageGate("bad"):makeStageGate("good")}return[a,b]}
+function spawnGatePair(){const w=container.clientWidth,pair=makeGatePair(),a=pair[0],b=pair[1];let total=GAME_CONFIG.gateWidth*2+GAME_CONFIG.gatePairGap;let startX=w/2-total/2+rand(-GAME_CONFIG.gateOffsetMax,GAME_CONFIG.gateOffsetMax);startX=Math.max(8,Math.min(w-total-8,startX));const y=-GAME_CONFIG.gateHeight-8;state.gates.push(Object.assign(a,{x:startX,y:y,width:GAME_CONFIG.gateWidth,height:GAME_CONFIG.gateHeight,used:false}),Object.assign(b,{x:startX+GAME_CONFIG.gateWidth+GAME_CONFIG.gatePairGap,y:y,width:GAME_CONFIG.gateWidth,height:GAME_CONFIG.gateHeight,used:false}))}
+function updateGates(delta){state.gates.forEach(function(g){g.y+=GAME_CONFIG.gateSpeed*delta});state.gates=state.gates.filter(function(g){return g.y<container.clientHeight+80&&!g.used})}
+function applyGateEffect(g){const before=state.soldiers,bonus=getGateBonus();if(g.type==="add")state.soldiers+=g.value+(g.kind==="good"?bonus:0);if(g.type==="multiply")state.soldiers=Math.floor(state.soldiers*g.value);if(g.type==="subtract")state.soldiers-=g.value;if(g.type==="divide")state.soldiers=Math.floor(state.soldiers/g.value);state.soldiers=Math.max(GAME_CONFIG.minSoldiers,Math.floor(state.soldiers));const diff=state.soldiers-before;const label=(g.kind==="good"&&bonus&&g.type==="add")?g.label+"+"+bonus:g.label;addFloatingText(label+" ("+(diff>=0?"+":"")+diff+")",g.x+g.width/2,g.y,g.kind);updateUI();if(state.soldiers<=0)gameOver()}
+function addFloatingText(text,x,y,kind){state.floatingTexts.push({text:text,x:x,y:y,kind:kind,life:520})}
+function updateFloatingTexts(delta){state.floatingTexts.forEach(function(t){t.y-=.45*delta;t.life-=16.67*delta});state.floatingTexts=state.floatingTexts.filter(function(t){return t.life>0})}
+function rectsOverlap(a,b){return a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y}
+function checkGateCollisions(){state.gates.forEach(function(g){if(!g.used&&rectsOverlap(state.player,g)){g.used=true;applyGateEffect(g)}})}
+function getRandomZombieType(){const r=Math.random(),armoredChance=Math.min(.10+state.stage*.035,.34),containerChance=Math.min(.10+state.stage*.014,.28);if(r<containerChance)return ZOMBIE_LIBRARY[4];if(r<containerChance+armoredChance)return ZOMBIE_LIBRARY[3];if(r<.48)return ZOMBIE_LIBRARY[0];if(r<.68)return ZOMBIE_LIBRARY[1];return ZOMBIE_LIBRARY[2]}
+function spawnZombie(){const z=getRandomZombieType(),w=container.clientWidth,laneWidth=w/GAME_CONFIG.lanes,lane=Math.floor(Math.random()*GAME_CONFIG.lanes);const zw=z.isContainer?z.size*1.45:z.size,zh=z.isContainer?z.size*.82:z.size;const x=laneWidth*lane+laneWidth/2-zw/2+rand(-18,18);const scaledHp=scaleEnemyHp(z.hp,!!z.isContainer);state.zombies.push(Object.assign({},z,{x:Math.max(8,Math.min(w-zw-8,x)),y:-zh-20,width:zw,height:zh,hp:scaledHp,maxHp:scaledHp,used:false,scored:false}))}
+function updateZombies(delta){state.zombies.forEach(function(z){z.y+=GAME_CONFIG.zombieSpeed*z.speed*delta;if(!z.used&&!z.scored&&z.y>container.clientHeight){z.scored=true;z.used=true;damageSoldiers(z.damage,z.x+z.width/2,container.clientHeight-42)}});state.zombies=state.zombies.filter(function(z){return z.y<container.clientHeight+90&&!z.used})}
+function damageSoldiers(amount,x,y){amount=getDamageAfterHero(amount);state.soldiers-=amount;addFloatingText("-"+amount,x,y,"bad");if(state.soldiers<=0){state.soldiers=0;updateUI();updateBossHpOverlay();gameOver();return}updateUI()}
+function checkZombieCollisions(timestamp){state.zombies.forEach(function(z){if(!z.used&&rectsOverlap(state.player,z)){z.used=true;if(timestamp-state.lastHitTime>GAME_CONFIG.collisionInvincibleMs){state.lastHitTime=timestamp;damageSoldiers(z.damage,z.x+z.width/2,z.y)}}})}
+function defeatZombie(z){z.used=true;state.score+=z.score;state.zombiesDefeatedThisStage++;if(z.isContainer){state.resources.rifles+=(z.rifles||0);const bonus=getRifleDamageBonus();addFloatingText("🔫 +"+(z.rifles||0),z.x+z.width/2,z.y,"good");ui.note.textContent="컨테이너 파괴! 라이플 증가 · 현재 총알 피해 +"+bonus}else{addFloatingText("처치",z.x+z.width/2,z.y,"good")}updateUI()}
+function spawnBullet(){
+  const p=state.player;
+  const count=getBulletCount();
+  const centerX=p.x+p.width/2-GAME_CONFIG.bulletWidth/2;
+  const damage=getBulletDamage();
+  // 병력 수만큼 총알을 생성합니다. 너무 한 줄로 겹치지 않도록 여러 줄의 탄막으로 펼칩니다.
+  const columns=Math.min(count,36);
+  const rows=Math.ceil(count/columns);
+  const spreadWidth=Math.min(container.clientWidth*.72,Math.max(72,p.width+state.soldiers*.42));
+  const spacing=columns>1?spreadWidth/(columns-1):0;
+  for(let i=0;i<count;i++){
+    const col=i%columns;
+    const row=Math.floor(i/columns);
+    const offset=(col-(columns-1)/2)*spacing;
+    const rowOffset=row*5.2;
+    state.bullets.push({
+      x:centerX+offset,
+      y:p.y-GAME_CONFIG.bulletHeight+2+rowOffset,
+      width:GAME_CONFIG.bulletWidth,
+      height:GAME_CONFIG.bulletHeight,
+      damage:damage,
+      used:false
+    });
+  }
+}
+function updateBullets(delta){state.bullets.forEach(function(b){b.y-=GAME_CONFIG.bulletSpeed*delta});state.bullets=state.bullets.filter(function(b){return b.y>-40&&!b.used})}
+function checkBulletCollisions(){state.bullets.forEach(function(b){if(b.used)return;for(let i=0;i<state.zombies.length;i++){const z=state.zombies[i];if(!z.used&&rectsOverlap(b,z)){b.used=true;z.hp-=b.damage;if(z.hp<=0)defeatZombie(z);break}}if(!b.used&&state.boss&&state.boss.active&&rectsOverlap(b,state.boss)){b.used=true;state.boss.hp-=b.damage;if(state.boss.hp<=0)clearStage()}})}
+function spawnBoss(){state.phase="boss";state.gates=[];state.zombies=[];const hp=Math.ceil((GAME_CONFIG.bossHpBase+state.stage*GAME_CONFIG.bossHpPerStage)*getStageBalance().bossHpScale*.64);state.boss={x:container.clientWidth/2-GAME_CONFIG.bossWidth/2,y:-GAME_CONFIG.bossHeight-20,width:GAME_CONFIG.bossWidth,height:GAME_CONFIG.bossHeight,hp:hp,maxHp:hp,damage:GAME_CONFIG.bossDamage,active:true};ui.note.textContent="보스 등장! 총알로 체력을 깎으세요";addFloatingText("BOSS!",container.clientWidth/2,90,"bad")}
+function updateBoss(delta,timestamp){if(!state.boss||!state.boss.active)return;const b=state.boss;const bossStopY=Math.min(container.clientHeight*0.32,210);if(b.y<bossStopY)b.y+=GAME_CONFIG.bossSpeed*delta;if(rectsOverlap(state.player,b)&&timestamp-state.lastHitTime>GAME_CONFIG.collisionInvincibleMs){state.lastHitTime=timestamp;damageSoldiers(b.damage,b.x+b.width/2,b.y+b.height)}}
+function clearStage(){state.running=false;state.score+=GAME_CONFIG.bossScore;const mult=getRewardMultiplier();state.rewards={food:Math.floor((50+state.stage*10)*mult),metal:Math.floor((30+state.stage*8)*mult),fuel:Math.floor((20+state.stage*5)*mult),rifles:0};state.resources.food+=state.rewards.food;state.resources.metal+=state.rewards.metal;state.resources.fuel+=state.rewards.fuel;state.resources.rifles+=state.rewards.rifles;$("foodReward").textContent=state.rewards.food;$("metalReward").textContent=state.rewards.metal;$("fuelReward").textContent=state.rewards.fuel;$("rifleReward").textContent=state.rewards.rifles;updateUI();updateBossHpOverlay();showOnly("clear")}
+function gameOver(){state.running=false;$("overStage").textContent=state.stage;$("overScore").textContent=state.score;showOnly("over")}
+function updateSkillButton(){const btn=$("skillBtn");if(!btn)return;const unlocked=(state.buildings.drone||0)>0;if(!unlocked){btn.textContent="폭격 잠김";btn.disabled=true;return}const remain=GAME_CONFIG.droneCooldownMs-(performance.now()-state.lastSkillTime);if(state.screen==="battle"&&remain>0){btn.textContent=Math.ceil(remain/1000)+"초";btn.disabled=true}else{btn.textContent="폭격";btn.disabled=false}}
+function useDroneSkill(){if(state.screen!=="battle"||!state.running)return;if((state.buildings.drone||0)<=0){addFloatingText("드론 센터 필요",container.clientWidth/2,container.clientHeight-130,"bad");return}const now=performance.now();if(now-state.lastSkillTime<GAME_CONFIG.droneCooldownMs)return;state.lastSkillTime=now;const damage=GAME_CONFIG.droneBaseDamage+(state.buildings.drone||0)*GAME_CONFIG.droneDamagePerLevel;state.zombies.forEach(function(z){if(!z.used){z.hp-=damage;addFloatingText("폭격 -"+damage,z.x+z.width/2,z.y+8,"good");if(z.hp<=0)defeatZombie(z)}});if(state.boss&&state.boss.active){state.boss.hp-=damage;addFloatingText("폭격 -"+damage,state.boss.x+state.boss.width/2,state.boss.y+18,"good");if(state.boss.hp<=0)clearStage()}ui.note.textContent="드론 폭격! 적 전체에 "+damage+" 피해";updateSkillButton()}
+function gameLoop(timestamp){if(!state.running||state.screen!=="battle")return;if(!state.battleStartTime)state.battleStartTime=timestamp;if(!state.lastFrameTime)state.lastFrameTime=timestamp;const delta=Math.min(2,(timestamp-state.lastFrameTime)/16.67||1);state.lastFrameTime=timestamp;const elapsed=timestamp-state.battleStartTime;if(state.phase==="normal"&&elapsed>GAME_CONFIG.bossAppearMs)spawnBoss();if(state.phase==="normal"){if(!state.lastGateSpawnTime)state.lastGateSpawnTime=timestamp-2800;if(timestamp-state.lastGateSpawnTime>GAME_CONFIG.gateSpawnInterval+rand(-900,1400)){spawnGatePair();state.lastGateSpawnTime=timestamp}if(!state.lastZombieSpawnTime)state.lastZombieSpawnTime=timestamp-900;if(timestamp-state.lastZombieSpawnTime>GAME_CONFIG.zombieSpawnInterval+rand(-450,650)){spawnZombie();state.lastZombieSpawnTime=timestamp}}if(!state.lastBulletSpawnTime)state.lastBulletSpawnTime=timestamp;if(timestamp-state.lastBulletSpawnTime>GAME_CONFIG.bulletSpawnInterval){spawnBullet();state.lastBulletSpawnTime=timestamp}updatePlayer();updateGates(delta);updateZombies(delta);updateBoss(delta,timestamp);updateBullets(delta);updateFloatingTexts(delta);checkGateCollisions();checkBulletCollisions();checkZombieCollisions(timestamp);renderThree(timestamp);updateSkillButton();requestAnimationFrame(gameLoop)}
+function renderHeroCards(){const wrap=$("heroCardList");wrap.innerHTML="";const resource=document.createElement("div");resource.className="resource-strip";resource.innerHTML='<div class="resource-chip"><strong>'+state.resources.food+'</strong><span>식량</span></div><div class="resource-chip"><strong>'+state.resources.metal+'</strong><span>금속</span></div><div class="resource-chip"><strong>'+state.resources.fuel+'</strong><span>연료</span></div><div class="resource-chip"><strong>'+state.resources.rifles+'</strong><span>라이플</span></div>';wrap.appendChild(resource);HERO_LIBRARY.forEach(function(h){const level=getHeroLevel(h.id),cost=getHeroLevelCost(h.id),card=document.createElement("div");card.className="hero-card"+(h.id===state.selectedHeroId?" selected":"");card.innerHTML='<div class="hero-icon">'+h.icon+'</div><div><strong>'+h.name+' Lv.'+level+'</strong><span>'+h.desc+'<br>현재 효과: '+formatHeroEffect(h)+'<br>레벨업 비용: '+costText(cost)+'</span></div><div style="display:grid;gap:6px"><button class="hero-tag select-hero-btn">선택</button><button class="hero-tag level-hero-btn" '+(canAfford(cost)?"":"disabled")+'>레벨업</button></div>';card.querySelector(".select-hero-btn").addEventListener("click",function(){state.selectedHeroId=h.id;state.selectedHero=h.name;updateUI();renderHeroCards()});card.querySelector(".level-hero-btn").addEventListener("click",function(){if(!canAfford(cost))return;payCost(cost);state.heroLevels[h.id]=level+1;updateUI();renderHeroCards()});wrap.appendChild(card)})}
+function renderBaseResources(){if(!$("baseFood"))return;$("baseFood").textContent=state.resources.food;$("baseMetal").textContent=state.resources.metal;$("baseFuel").textContent=state.resources.fuel;$("baseRifles").textContent=state.resources.rifles}
+function canAfford(cost){return state.resources.food>=cost.food&&state.resources.metal>=cost.metal&&state.resources.fuel>=cost.fuel&&state.resources.rifles>=cost.rifles}
+function payCost(cost){state.resources.food-=cost.food;state.resources.metal-=cost.metal;state.resources.fuel-=cost.fuel;state.resources.rifles-=cost.rifles}
+function costText(cost){return "식량 "+cost.food+" · 금속 "+cost.metal+" · 연료 "+cost.fuel+" · 라이플 "+cost.rifles}
+function renderBase(){renderBaseResources();const wrap=$("upgradeList");wrap.innerHTML="";BUILDING_LIBRARY.forEach(function(b){const level=state.buildings[b.id]||0,cost=b.cost(level),card=document.createElement("div");card.className="upgrade-card";card.innerHTML='<div><strong>'+b.icon+' '+b.name+' Lv.'+level+'</strong><p>'+b.desc+'<br>필요 자원: '+costText(cost)+'</p></div><button '+(canAfford(cost)?"":"disabled")+'>강화</button>';card.querySelector("button").addEventListener("click",function(){if(!canAfford(cost))return;payCost(cost);state.buildings[b.id]=level+1;updateUI();renderBase()});wrap.appendChild(card)})}
+$("startBattleBtn").addEventListener("click",function(){state.stage=GAME_CONFIG.startStage;state.soldiers=getStartSoldiers();state.score=GAME_CONFIG.startScore;showScreen("battle")});
+$("backBtn").addEventListener("click",function(){state.running=false;showOnly("start");updateUI()});
+$("heroBtn").addEventListener("click",function(){renderHeroCards();showOnly("hero")});
+$("heroBackBtn").addEventListener("click",function(){showOnly("start");updateUI()});
+$("heroStartBtn").addEventListener("click",function(){state.stage=GAME_CONFIG.startStage;state.soldiers=getStartSoldiers();state.score=GAME_CONFIG.startScore;showScreen("battle")});
+$("baseBtn").addEventListener("click",function(){renderBase();showOnly("base")});
+$("baseBackBtn").addEventListener("click",function(){showOnly("start");updateUI()});
+$("baseStartBtn").addEventListener("click",function(){state.soldiers=getStartSoldiers();state.score=GAME_CONFIG.startScore;showScreen("battle")});
+$("clearBaseBtn").addEventListener("click",function(){renderBase();showOnly("base")});
+$("nextStageBtn").addEventListener("click",function(){state.stage++;state.soldiers=Math.max(getStartSoldiers(),Math.floor(state.soldiers));updateUI();showScreen("battle")});
+$("clearHomeBtn").addEventListener("click",function(){showOnly("start")});
+$("retryBtn").addEventListener("click",function(){state.soldiers=getStartSoldiers();state.score=GAME_CONFIG.startScore;updateUI();showScreen("battle")});
+$("overHomeBtn").addEventListener("click",function(){showOnly("start")});
+window.addEventListener("keydown",function(e){if(e.key==="ArrowLeft")state.keys.left=true;if(e.key==="ArrowRight")state.keys.right=true;if(e.code==="Space")useDroneSkill()});
+window.addEventListener("keyup",function(e){if(e.key==="ArrowLeft")state.keys.left=false;if(e.key==="ArrowRight")state.keys.right=false});
+function bindHoldButton(btn,dir){
+  if(!btn)return;
+  const start=function(e){e.preventDefault();state.keys[dir]=true},end=function(e){e.preventDefault();state.keys[dir]=false};
+  btn.addEventListener("pointerdown",start);
+  btn.addEventListener("pointerup",end);
+  btn.addEventListener("pointerleave",end);
+  btn.addEventListener("pointercancel",end);
+}
+let touchMoveActive=false;
+function movePlayerToPointer(e){
+  if(state.screen!=="battle")return;
+  const rect=container.getBoundingClientRect();
+  const x=e.clientX-rect.left-state.player.width/2;
+  const maxX=container.clientWidth-state.player.width;
+  state.player.x=Math.max(22,Math.min(maxX-22,x));
+}
+container.addEventListener("pointerdown",function(e){
+  if(state.screen!=="battle")return;
+  touchMoveActive=true;
+  container.setPointerCapture && container.setPointerCapture(e.pointerId);
+  movePlayerToPointer(e);
+});
+container.addEventListener("pointermove",function(e){
+  if(!touchMoveActive)return;
+  movePlayerToPointer(e);
+});
+["pointerup","pointercancel","pointerleave"].forEach(function(type){
+  container.addEventListener(type,function(e){
+    touchMoveActive=false;
+    try{container.releasePointerCapture && container.releasePointerCapture(e.pointerId)}catch(err){}
+  });
+});
+$("skillBtn").addEventListener("click",useDroneSkill);
+window.addEventListener("resize",function(){resizeThree();if(state.screen==="battle")resetBattlePosition()});
+initThree();renderHeroCards();updateUI();
+</script>
+</body>
+</html>
