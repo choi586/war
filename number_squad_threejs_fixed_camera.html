@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>넘버 스쿼드: 좀비 게이트 3D</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #020617;
+      color: #fff;
+      touch-action: none;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #app {
+      position: relative;
+      width: min(100vw, 430px);
+      height: 100vh;
+      max-height: 940px;
+      overflow: hidden;
+      background: #0f172a;
+      box-shadow: 0 0 45px rgba(0,0,0,.55);
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      padding: 22px;
+      z-index: 20;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    .center-screen {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      text-align: center;
+    }
+
+    #startScreen {
+      background:
+        radial-gradient(circle at 50% 14%, rgba(56,189,248,.35), transparent 28%),
+        radial-gradient(circle at 20% 82%, rgba(250,204,21,.23), transparent 28%),
+        linear-gradient(180deg, #1e293b 0%, #020617 100%);
+    }
+
+    .title {
+      font-size: clamp(34px, 9vw, 50px);
+      line-height: 1.05;
+      font-weight: 950;
+      letter-spacing: -1px;
+      text-shadow: 0 7px 0 rgba(0,0,0,.28);
+    }
+
+    .subtitle {
+      margin-top: 10px;
+      max-width: 350px;
+      color: #cbd5e1;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .panel {
+      width: 100%;
+      max-width: 365px;
+      border-radius: 26px;
+      padding: 18px;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 34px rgba(0,0,0,.26);
+    }
+
+    .hero-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .hero-option {
+      padding: 12px 6px;
+      border: 2px solid transparent;
+      border-radius: 20px;
+      background: rgba(15,23,42,.75);
+      color: #fff;
+      cursor: pointer;
+      min-height: 118px;
+    }
+
+    .hero-option.selected {
+      border-color: #facc15;
+      background: rgba(250,204,21,.18);
+    }
+
+    .hero-emoji {
+      font-size: 38px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .hero-name {
+      font-size: 13px;
+      font-weight: 950;
+      margin-bottom: 4px;
+    }
+
+    .hero-desc {
+      font-size: 10px;
+      color: #cbd5e1;
+      line-height: 1.25;
+    }
+
+    .upgrade-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .upgrade-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: 16px;
+      background: rgba(15,23,42,.66);
+      text-align: left;
+    }
+
+    .upgrade-title {
+      font-size: 14px;
+      font-weight: 950;
+    }
+
+    .upgrade-info {
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+
+    .upgrade-button {
+      border: 0;
+      border-radius: 12px;
+      padding: 9px 10px;
+      background: #22c55e;
+      color: #052e16;
+      font-weight: 950;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #15803d;
+    }
+
+    .upgrade-button:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #15803d;
+    }
+
+    .upgrade-button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .button {
+      width: 100%;
+      max-width: 365px;
+      border: 0;
+      border-radius: 18px;
+      padding: 17px 20px;
+      background: #facc15;
+      color: #111827;
+      font-size: 20px;
+      font-weight: 950;
+      cursor: pointer;
+      box-shadow: 0 8px 0 #ca8a04;
+    }
+
+    .button:active {
+      transform: translateY(6px);
+      box-shadow: 0 2px 0 #ca8a04;
+    }
+
+    .button.blue {
+      background: #38bdf8;
+      box-shadow: 0 8px 0 #0284c7;
+    }
+
+    #gameScreen {
+      flex-direction: column;
+      padding: 0;
+      background: #0f172a;
+      z-index: 10;
+    }
+
+    #threeWrap {
+      position: absolute;
+      inset: 76px 0 0 0;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    #threeWrap canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      touch-action: none;
+    }
+
+    .top-ui {
+      position: relative;
+      height: 76px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 7px;
+      padding: 10px;
+      background: rgba(2,6,23,.96);
+      z-index: 5;
+    }
+
+    .stat-box {
+      border-radius: 14px;
+      background: rgba(255,255,255,.1);
+      padding: 7px 4px;
+      text-align: center;
+      font-size: 10px;
+      color: #cbd5e1;
+      overflow: hidden;
+    }
+
+    .stat-box strong {
+      display: block;
+      margin-top: 2px;
+      color: #fff;
+      font-size: 17px;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    #floatingTextLayer {
+      position: absolute;
+      inset: 76px 0 0 0;
+      z-index: 4;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .float-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      color: #fff;
+      font-weight: 950;
+      font-size: 18px;
+      text-shadow: 0 3px 8px rgba(0,0,0,.75);
+      animation: floatUp .9s ease-out forwards;
+      white-space: nowrap;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 0; transform: translate(-50%, -20%) scale(.9); }
+      12% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -120%) scale(1.08); }
+    }
+
+    .boss-bar {
+      position: absolute;
+      left: 50%;
+      top: 88px;
+      transform: translateX(-50%);
+      width: 74%;
+      height: 21px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.42);
+      border: 2px solid rgba(255,255,255,.28);
+      z-index: 6;
+      overflow: hidden;
+      display: none;
+    }
+
+    .boss-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #ef4444, #fb7185);
+      border-radius: 999px;
+    }
+
+    .boss-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 950;
+      text-shadow: 0 2px 4px rgba(0,0,0,.8);
+    }
+
+    #resultScreen {
+      background:
+        radial-gradient(circle at 50% 20%, rgba(250,204,21,.28), transparent 30%),
+        linear-gradient(180deg, #1e293b, #020617);
+    }
+
+    .result-title {
+      font-size: 38px;
+      font-weight: 950;
+      margin-bottom: 10px;
+    }
+
+    .result-text {
+      color: #cbd5e1;
+      line-height: 1.6;
+      font-size: 15px;
+      margin-bottom: 16px;
+    }
+
+    .small-note {
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .row-buttons {
+      width: 100%;
+      max-width: 365px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      top: 86px;
+      transform: translateX(-50%);
+      z-index: 50;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(15,23,42,.92);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 950;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s, transform .18s;
+      white-space: nowrap;
+      border: 1px solid rgba(255,255,255,.16);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(6px);
+    }
+
+    .loading {
+      position: absolute;
+      inset: 76px 0 0 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0f172a;
+      z-index: 3;
+      color: #cbd5e1;
+      font-weight: 900;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <div id="toast" class="toast">업그레이드 완료!</div>
+
+    <section id="startScreen" class="screen center-screen active">
+      <div>
+        <h1 class="title">넘버 스쿼드:<br>좀비 게이트 3D</h1>
+        <p class="subtitle">Three.js로 만든 3D 카툰 러너 버전입니다. 병력을 늘리고, 게이트를 고르고, 좀비 보스를 처치하세요.</p>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:950; margin-bottom:10px;">캐릭터 선택</div>
+        <div class="hero-row">
+          <button type="button" class="hero-option selected" data-hero="captain">
+            <div class="hero-emoji">🪖</div>
+            <div class="hero-name">강철 대장</div>
+            <div class="hero-desc">피해 20% 감소<br>초보자용</div>
+          </button>
+          <button type="button" class="hero-option" data-hero="rocket">
+            <div class="hero-emoji">🚀</div>
+            <div class="hero-name">로켓 소녀</div>
+            <div class="hero-desc">공격력 30% 증가<br>보스전 유리</div>
+          </button>
+          <button type="button" class="hero-option" data-hero="drone">
+            <div class="hero-emoji">🛸</div>
+            <div class="hero-name">드론 지휘관</div>
+            <div class="hero-desc">좋은 게이트 효과<br>20% 증가</div>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div style="font-weight:950;">업그레이드</div>
+          <div style="font-weight:950; color:#facc15;">Gold <span id="menuGoldText">0</span></div>
+        </div>
+        <div class="upgrade-list">
+          <div class="upgrade-item">
+            <div>
+              <div class="upgrade-title">시작 병사</div>
+              <div class="upgrade-info">Lv.<span id="startLevelText">1</span> / 시작 병사 +<span id="startBonusText">0</span></div>
+            </div>
+            <button type="button" id="upgradeStartBtn" class="upgrade-button">100G</button>
+          </div>
+          <div class="upgrade-item">
+            <div>
+              <div class="upgrade-title">공격력</div>
+              <div class="upgrade-info">Lv.<span id="attackLevelText">1</span> / 총알 피해 증가</div>
+            </div>
+            <button type="button" id="upgradeAttackBtn" class="upgrade-button">120G</button>
+          </div>
+          <div class="upgrade-item">
+            <div>
+              <div class="upgrade-title">발사 속도</div>
+              <div class="upgrade-info">Lv.<span id="rateLevelText">1</span> / 더 빠른 자동 사격</div>
+            </div>
+            <button type="button" id="upgradeRateBtn" class="upgrade-button">140G</button>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" id="startButton" class="button">게임 시작</button>
+      <p class="small-note">조작: 드래그 / 터치 / 방향키 ← →</p>
+    </section>
+
+    <section id="gameScreen" class="screen">
+      <div class="top-ui">
+        <div class="stat-box">STAGE<strong id="stageText">1</strong></div>
+        <div class="stat-box">병사<strong id="soldierText">10</strong></div>
+        <div class="stat-box">GOLD<strong id="goldText">0</strong></div>
+        <div class="stat-box">거리<strong id="distanceText">0%</strong></div>
+      </div>
+      <div id="threeWrap">
+        <div class="loading" id="loadingText">3D 화면 준비 중... 인터넷 연결이 필요합니다</div>
+      </div>
+      <div class="boss-bar" id="bossBar">
+        <div class="boss-fill" id="bossFill"></div>
+        <div class="boss-text" id="bossText">BOSS</div>
+      </div>
+      <div id="floatingTextLayer"></div>
+    </section>
+
+    <section id="resultScreen" class="screen center-screen">
+      <div class="panel">
+        <div id="resultTitle" class="result-title">CLEAR!</div>
+        <div id="resultText" class="result-text">스테이지를 클리어했습니다.</div>
+      </div>
+      <div class="row-buttons">
+        <button type="button" id="nextButton" class="button">다음 스테이지</button>
+        <button type="button" id="menuButton" class="button blue">업그레이드 화면</button>
+      </div>
+    </section>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+
+    // =========================================================
+    // Three.js 3D 카툰 러너 버전
+    // - 기존 2D 캔버스 게임을 3D 오브젝트 기반으로 재구성
+    // - 외부 모델 없이 Three.js primitive, CanvasTexture, Bloom 활용
+    // =========================================================
+
+    const wrap = document.getElementById("threeWrap");
+    const loadingText = document.getElementById("loadingText");
+    const floatingLayer = document.getElementById("floatingTextLayer");
+
+    const screens = {
+      start: document.getElementById("startScreen"),
+      game: document.getElementById("gameScreen"),
+      result: document.getElementById("resultScreen")
+    };
+
+    const ui = {
+      stage: document.getElementById("stageText"),
+      soldiers: document.getElementById("soldierText"),
+      gold: document.getElementById("goldText"),
+      distance: document.getElementById("distanceText"),
+      menuGold: document.getElementById("menuGoldText"),
+      startLevel: document.getElementById("startLevelText"),
+      startBonus: document.getElementById("startBonusText"),
+      attackLevel: document.getElementById("attackLevelText"),
+      rateLevel: document.getElementById("rateLevelText"),
+      resultTitle: document.getElementById("resultTitle"),
+      resultText: document.getElementById("resultText"),
+      nextButton: document.getElementById("nextButton"),
+      toast: document.getElementById("toast"),
+      bossBar: document.getElementById("bossBar"),
+      bossFill: document.getElementById("bossFill"),
+      bossText: document.getElementById("bossText")
+    };
+
+    const heroData = {
+      captain: {
+        name: "강철 대장",
+        color: 0x60a5fa,
+        accent: 0xfacc15,
+        attackBonus: 1,
+        damageTaken: 0.8,
+        gateBonus: 1
+      },
+      rocket: {
+        name: "로켓 소녀",
+        color: 0xf97316,
+        accent: 0xfacc15,
+        attackBonus: 1.3,
+        damageTaken: 1,
+        gateBonus: 1
+      },
+      drone: {
+        name: "드론 지휘관",
+        color: 0x22d3ee,
+        accent: 0xa78bfa,
+        attackBonus: 0.95,
+        damageTaken: 1,
+        gateBonus: 1.2
+      }
+    };
+
+    const saveKey = "numberSquadZombieGate3D_v1";
+    const meta = loadSave();
+
+    const state = {
+      screen: "start",
+      running: false,
+      clear: false,
+      gameOver: false,
+      animationId: null,
+      lastTime: 0,
+
+      stage: meta.stage || 1,
+      gold: meta.gold || 0,
+      selectedHero: meta.selectedHero || "captain",
+
+      soldiers: 10,
+      distance: 0,
+      bossMode: false,
+
+      roadOffset: 0,
+      spawnTimer: 0,
+      gateTimer: 0,
+      shootTimer: 0,
+      bossAttackTimer: 0,
+
+      gates: [],
+      zombies: [],
+      bullets: [],
+      soldiers3D: [],
+      particles: [],
+      decor: [],
+      boss: null
+    };
+
+    const upgrades = {
+      startSoldiers: meta.upgrades?.startSoldiers || 1,
+      attack: meta.upgrades?.attack || 1,
+      fireRate: meta.upgrades?.fireRate || 1
+    };
+
+    const player = {
+      x: 0,
+      z: 4.5,
+      targetX: 0,
+      radius: 0.72,
+      group: new THREE.Group()
+    };
+
+    const input = {
+      dragging: false,
+      left: false,
+      right: false
+    };
+
+    const config = {
+      roadHalfWidth: 3.2,
+      worldMinX: -2.75,
+      worldMaxX: 2.75,
+      playerZ: 4.6,
+      spawnZ: -18,
+      removeZ: 8.5
+    };
+
+    // ---------- Three.js 기본 세팅 ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x89c7ff);
+    scene.fog = new THREE.Fog(0x89c7ff, 18, 48);
+
+    const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
+    camera.position.set(0, 6.8, 9.2);
+    camera.lookAt(0, 0.4, -3.5);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    wrap.appendChild(renderer.domElement);
+
+    let composer = null;
+
+    try {
+      composer = new EffectComposer(renderer);
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.28, 0.45, 0.85);
+      composer.addPass(bloomPass);
+    } catch (error) {
+      console.warn("후처리 효과를 사용할 수 없어 기본 렌더러로 실행합니다.", error);
+      composer = null;
+    }
+
+    loadingText.style.display = "none";
+
+    const ambient = new THREE.HemisphereLight(0xffffff, 0x355070, 2.2);
+    scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 2.25);
+    sun.position.set(-4, 9, 6);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.left = -12;
+    sun.shadow.camera.right = 12;
+    sun.shadow.camera.top = 12;
+    sun.shadow.camera.bottom = -12;
+    scene.add(sun);
+
+    const rim = new THREE.DirectionalLight(0x60a5fa, 1.2);
+    rim.position.set(4, 4, -7);
+    scene.add(rim);
+
+    const world = new THREE.Group();
+    scene.add(world);
+
+    const roadGroup = new THREE.Group();
+    world.add(roadGroup);
+
+    createWorld();
+    createPlayerGroup();
+    updateMenuUI();
+    resize();
+
+    // ---------- 월드/디자인 ----------
+    function createWorld() {
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.75 });
+      const ground = new THREE.Mesh(new THREE.BoxGeometry(11, 0.32, 70), groundMat);
+      ground.position.set(0, -0.25, -10);
+      ground.receiveShadow = true;
+      world.add(ground);
+
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.82, metalness: 0.02 });
+      const road = new THREE.Mesh(new THREE.BoxGeometry(6.7, 0.12, 80), roadMat);
+      road.position.set(0, -0.05, -10);
+      road.receiveShadow = true;
+      roadGroup.add(road);
+
+      const sideMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.55 });
+      for (const x of [-3.45, 3.45]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 80), sideMat);
+        rail.position.set(x, 0.03, -10);
+        rail.receiveShadow = true;
+        roadGroup.add(rail);
+      }
+
+      const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.05 });
+      for (let i = 0; i < 22; i++) {
+        const line = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 1.4), lineMat);
+        line.position.set(0, 0.04, -26 + i * 3.2);
+        line.userData.baseZ = line.position.z;
+        roadGroup.add(line);
+        state.decor.push({ mesh: line, kind: "line" });
+      }
+
+      // 양옆 기지/건물/나무: 라스트워 광고 느낌의 낮은 폴리 군사기지 분위기
+      const buildingColors = [0x64748b, 0x475569, 0x94a3b8, 0x1e293b];
+      for (let i = 0; i < 34; i++) {
+        const side = i % 2 === 0 ? -1 : 1;
+        const z = -33 + i * 2.2;
+        const x = side * rand(4.4, 5.1);
+        const h = rand(0.5, 1.8);
+        const b = new THREE.Mesh(
+          new THREE.BoxGeometry(rand(0.55, 1.1), h, rand(0.55, 1.2)),
+          new THREE.MeshStandardMaterial({ color: buildingColors[i % buildingColors.length], roughness: 0.62 })
+        );
+        b.position.set(x, h / 2 - 0.05, z);
+        b.castShadow = true;
+        b.receiveShadow = true;
+        world.add(b);
+        state.decor.push({ mesh: b, kind: "side", baseZ: z, speed: 0 });
+
+        if (i % 4 === 0) {
+          const tower = createWatchTower();
+          tower.position.set(side * rand(4.2, 5.3), 0, z + 1.0);
+          world.add(tower);
+          state.decor.push({ mesh: tower, kind: "side", baseZ: z + 1.0, speed: 0 });
+        }
+      }
+    }
+
+    function createWatchTower() {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
+      const topMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.6 });
+      for (const x of [-0.22, 0.22]) {
+        for (const z of [-0.22, 0.22]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.2, 6), mat);
+          leg.position.set(x, 0.6, z);
+          leg.castShadow = true;
+          g.add(leg);
+        }
+      }
+      const top = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.28, 0.75), topMat);
+      top.position.y = 1.25;
+      top.castShadow = true;
+      g.add(top);
+      return g;
+    }
+
+    function createPlayerGroup() {
+      player.group.clear();
+      player.group.position.set(0, 0, config.playerZ);
+      scene.add(player.group);
+      rebuildSoldierVisuals();
+    }
+
+    function rebuildSoldierVisuals() {
+      for (const s of state.soldiers3D) {
+        player.group.remove(s);
+        disposeObject(s);
+      }
+      state.soldiers3D = [];
+
+      const displayCount = Math.min(22, Math.max(1, Math.floor(Math.sqrt(Math.max(1, state.soldiers))) + 2));
+      const positions = makeSquadPositions(displayCount);
+      const hero = heroData[state.selectedHero];
+
+      for (let i = 0; i < displayCount; i++) {
+        const isLeader = i === 0;
+        const unit = createSoldierMesh(isLeader ? hero.color : 0x2563eb, isLeader ? hero.accent : 0xfacc15, isLeader);
+        unit.position.set(positions[i].x, 0, positions[i].z);
+        unit.scale.setScalar(isLeader ? 1.12 : 0.82);
+        unit.userData.baseY = 0;
+        player.group.add(unit);
+        state.soldiers3D.push(unit);
+      }
+    }
+
+    function makeSquadPositions(n) {
+      const pos = [{ x: 0, z: 0 }];
+      const rows = [
+        [-0.42, 0.38], [0.42, 0.38],
+        [-0.82, 0.82], [0, 0.88], [0.82, 0.82],
+        [-1.05, 1.26], [-0.35, 1.32], [0.35, 1.32], [1.05, 1.26],
+        [-1.2, 1.7], [-0.6, 1.75], [0, 1.8], [0.6, 1.75], [1.2, 1.7],
+        [-1.35, 2.13], [-0.85, 2.18], [-0.3, 2.23], [0.3, 2.23], [0.85, 2.18], [1.35, 2.13],
+        [-1.55, 2.55], [1.55, 2.55]
+      ];
+      for (let i = 0; i < n - 1; i++) {
+        const p = rows[i] || [rand(-1.4, 1.4), rand(0.5, 2.8)];
+        pos.push({ x: p[0], z: p[1] });
+      }
+      return pos;
+    }
+
+    function createSoldierMesh(color, accent, leader = false) {
+      const g = new THREE.Group();
+
+      const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.72 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xf6c59b, roughness: 0.7 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.48 });
+
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.28, 4, 10), bodyMat);
+      body.position.y = 0.48;
+      body.castShadow = true;
+      g.add(body);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), skinMat);
+      head.position.y = 0.88;
+      head.castShadow = true;
+      g.add(head);
+
+      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), darkMat);
+      helmet.position.y = 0.94;
+      helmet.castShadow = true;
+      g.add(helmet);
+
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.055, 0.045), accentMat);
+      visor.position.set(0, 0.88, 0.15);
+      visor.castShadow = true;
+      g.add(visor);
+
+      const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.5), darkMat);
+      gun.position.set(0.23, 0.56, -0.08);
+      gun.rotation.y = THREE.MathUtils.degToRad(-14);
+      gun.castShadow = true;
+      g.add(gun);
+
+      const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.18), accentMat);
+      muzzle.position.set(0.28, 0.56, -0.36);
+      muzzle.castShadow = true;
+      g.add(muzzle);
+
+      if (leader) {
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.6, 0.06), darkMat);
+        flag.position.set(-0.28, 0.78, 0.02);
+        g.add(flag);
+        const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.2, 0.035), accentMat);
+        cloth.position.set(-0.46, 1.05, 0.02);
+        cloth.castShadow = true;
+        g.add(cloth);
+      }
+
+      return g;
+    }
+
+    function createGateMesh(gate) {
+      const g = new THREE.Group();
+      const color = gate.good ? 0x22c55e : 0xef4444;
+      const glow = gate.good ? 0x86efac : 0xfca5a5;
+
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.42,
+        metalness: 0.08,
+        emissive: glow,
+        emissiveIntensity: 0.28
+      });
+
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.1 });
+
+      const left = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.65, 0.2), frameMat);
+      left.position.set(-0.76, 0.82, 0);
+      const right = left.clone();
+      right.position.x = 0.76;
+      const top = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.13, 0.2), frameMat);
+      top.position.set(0, 1.62, 0);
+
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(1.52, 1.03, 0.12), mat);
+      panel.position.set(0, 0.82, 0.02);
+      panel.castShadow = true;
+
+      const label = createTextSprite(gate.label, {
+        fontSize: 80,
+        color: "#ffffff",
+        bgColor: gate.good ? "rgba(34,197,94,0)" : "rgba(239,68,68,0)",
+        width: 256,
+        height: 128
+      });
+      label.position.set(0, 0.84, 0.12);
+      label.scale.set(1.35, 0.68, 1);
+
+      for (const m of [left, right, top, panel]) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        g.add(m);
+      }
+      g.add(label);
+
+      // 바닥 빛
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.95, 0.95, 0.025, 32),
+        new THREE.MeshStandardMaterial({ color: glow, transparent: true, opacity: 0.48, emissive: glow, emissiveIntensity: 0.32 })
+      );
+      ring.position.y = 0.03;
+      g.add(ring);
+
+      g.position.set(gate.x, 0, gate.z);
+      gate.mesh = g;
+      world.add(g);
+    }
+
+    function createZombieMesh(zombie) {
+      const g = new THREE.Group();
+      const greenMat = new THREE.MeshStandardMaterial({ color: zombie.type === "shield" ? 0x64748b : 0x65a30d, roughness: 0.68 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0x84cc16, roughness: 0.7 });
+      const eyeMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.85 });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.7 });
+
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.52, 5, 12), greenMat);
+      body.position.y = 0.58;
+      body.castShadow = true;
+      g.add(body);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 12), skinMat);
+      head.position.y = 1.08;
+      head.castShadow = true;
+      g.add(head);
+
+      for (const x of [-0.08, 0.08]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeMat);
+        eye.position.set(x, 1.09, 0.22);
+        g.add(eye);
+      }
+
+      const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.45, 4, 8), skinMat);
+      armL.position.set(-0.34, 0.7, 0.18);
+      armL.rotation.x = THREE.MathUtils.degToRad(60);
+      armL.rotation.z = THREE.MathUtils.degToRad(-18);
+      g.add(armL);
+
+      const armR = armL.clone();
+      armR.position.x = 0.34;
+      armR.rotation.z = THREE.MathUtils.degToRad(18);
+      g.add(armR);
+
+      if (zombie.type === "shield") {
+        const shield = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.72, 0.1), darkMat);
+        shield.position.set(0, 0.66, 0.34);
+        shield.castShadow = true;
+        g.add(shield);
+      }
+
+      if (zombie.type === "fast") {
+        g.scale.set(0.82, 0.82, 0.82);
+      } else if (zombie.type === "shield") {
+        g.scale.set(1.15, 1.15, 1.15);
+      }
+
+      g.position.set(zombie.x, 0, zombie.z);
+      zombie.mesh = g;
+      world.add(g);
+    }
+
+    function createBossMesh(boss) {
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, roughness: 0.58, emissive: 0x450a0a, emissiveIntensity: 0.3 });
+      const headMat = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.55 });
+      const hornMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.35, metalness: 0.05 });
+      const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.7 });
+
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.72, 1.2, 6, 16), bodyMat);
+      body.position.y = 1.0;
+      body.castShadow = true;
+      g.add(body);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.58, 24, 16), headMat);
+      head.position.y = 2.02;
+      head.castShadow = true;
+      g.add(head);
+
+      for (const x of [-0.2, 0.2]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), eyeMat);
+        eye.position.set(x, 2.08, 0.52);
+        g.add(eye);
+      }
+
+      for (const x of [-0.34, 0.34]) {
+        const horn = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.48, 12), hornMat);
+        horn.position.set(x, 2.48, 0.02);
+        horn.rotation.z = THREE.MathUtils.degToRad(x < 0 ? 24 : -24);
+        horn.castShadow = true;
+        g.add(horn);
+      }
+
+      const label = createTextSprite("BOSS", { fontSize: 64, color: "#ffffff", width: 256, height: 96 });
+      label.position.set(0, 2.9, 0);
+      label.scale.set(1.6, 0.6, 1);
+      g.add(label);
+
+      g.position.set(0, 0, boss.z);
+      boss.mesh = g;
+      world.add(g);
+    }
+
+    function createBulletMesh(bullet) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xfacc15,
+        emissive: 0xfacc15,
+        emissiveIntensity: 1.25,
+        roughness: 0.25
+      });
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 8), mat);
+      m.position.set(bullet.x, 0.72, bullet.z);
+      bullet.mesh = m;
+      world.add(m);
+    }
+
+    function createTextSprite(text, opts = {}) {
+      const width = opts.width || 256;
+      const height = opts.height || 128;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const c = canvas.getContext("2d");
+
+      if (opts.bgColor) {
+        c.fillStyle = opts.bgColor;
+        c.fillRect(0, 0, width, height);
+      }
+
+      c.font = `900 ${opts.fontSize || 64}px system-ui, sans-serif`;
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.lineWidth = 10;
+      c.strokeStyle = "rgba(0,0,0,.35)";
+      c.strokeText(text, width / 2, height / 2);
+      c.fillStyle = opts.color || "#ffffff";
+      c.fillText(text, width / 2, height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      return new THREE.Sprite(mat);
+    }
+
+    // ---------- 게임 시작/종료 ----------
+    function startGame() {
+      clearWorldObjects();
+
+      state.running = true;
+      state.clear = false;
+      state.gameOver = false;
+      state.distance = 0;
+      state.bossMode = false;
+      state.boss = null;
+      state.roadOffset = 0;
+      state.spawnTimer = 0;
+      state.gateTimer = 0.55;
+      state.shootTimer = 0;
+      state.bossAttackTimer = 0;
+      state.gates = [];
+      state.zombies = [];
+      state.bullets = [];
+      state.particles = [];
+
+      const startBonus = (upgrades.startSoldiers - 1) * 5;
+      state.soldiers = 10 + startBonus;
+
+      player.x = 0;
+      player.targetX = 0;
+      player.group.position.set(0, 0, config.playerZ);
+      rebuildSoldierVisuals();
+
+      showScreen("game");
+      updateGameUI();
+
+      state.lastTime = performance.now();
+      startLoop();
+    }
+
+    function finishGame(clear, reward = 0) {
+      state.running = false;
+      stopLoop();
+      state.clear = clear;
+
+      if (clear) {
+        ui.resultTitle.textContent = "Stage Clear!";
+        ui.resultText.innerHTML = `
+          <b>${state.stage}스테이지 클리어!</b><br>
+          획득 골드: ${reward}G<br>
+          남은 병사: ${Math.floor(state.soldiers)}명
+        `;
+        ui.nextButton.style.display = "block";
+        state.stage += 1;
+      } else {
+        const consolation = Math.max(10, Math.floor(state.distance / 5) + state.stage * 5);
+        state.gold += consolation;
+        ui.resultTitle.textContent = "Game Over";
+        ui.resultText.innerHTML = `
+          병사가 모두 사라졌습니다.<br>
+          도달 거리: ${Math.floor(state.distance)}%<br>
+          보상 골드: ${consolation}G
+        `;
+        ui.nextButton.style.display = "none";
+      }
+
+      ui.bossBar.style.display = "none";
+      saveGame();
+      updateMenuUI();
+      showScreen("result");
+    }
+
+    function clearWorldObjects() {
+      for (const arr of [state.gates, state.zombies, state.bullets, state.particles]) {
+        for (const obj of arr) {
+          if (obj.mesh) {
+            world.remove(obj.mesh);
+            disposeObject(obj.mesh);
+          }
+        }
+      }
+      if (state.boss?.mesh) {
+        world.remove(state.boss.mesh);
+        disposeObject(state.boss.mesh);
+      }
+      state.gates = [];
+      state.zombies = [];
+      state.bullets = [];
+      state.particles = [];
+      state.boss = null;
+      floatingLayer.innerHTML = "";
+      ui.bossBar.style.display = "none";
+    }
+
+    // ---------- 루프 ----------
+    function startLoop() {
+      stopLoop();
+      state.animationId = requestAnimationFrame(loop);
+    }
+
+    function stopLoop() {
+      if (state.animationId) {
+        cancelAnimationFrame(state.animationId);
+        state.animationId = null;
+      }
+    }
+
+    function loop(now) {
+      if (!state.running) return;
+
+      const dt = Math.min(0.033, (now - state.lastTime) / 1000 || 0.016);
+      state.lastTime = now;
+
+      update(dt);
+      render();
+
+      state.animationId = requestAnimationFrame(loop);
+    }
+
+    function update(dt) {
+      updateCamera(dt);
+      updatePlayer(dt);
+      updateRoad(dt);
+      updateProgress(dt);
+      updateSpawns(dt);
+      updateGates(dt);
+      updateZombies(dt);
+      updateBullets(dt);
+      updateBoss(dt);
+      updateParticles(dt);
+      animateSoldiers(dt);
+      updateGameUI();
+
+      if (state.soldiers <= 0) {
+        state.soldiers = 0;
+        finishGame(false);
+      }
+    }
+
+    function render() {
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    function updateCamera(dt) {
+      // 카메라 시점 고정:
+      // 플레이어를 따라 좌우로 움직이지 않게 해서 화면 흔들림을 제거합니다.
+      camera.position.set(0, 6.8, 9.2);
+      camera.lookAt(0, 0.4, -3.5);
+    }
+
+    function updatePlayer(dt) {
+      if (input.left) player.targetX -= 7.8 * dt;
+      if (input.right) player.targetX += 7.8 * dt;
+
+      player.targetX = clamp(player.targetX, config.worldMinX, config.worldMaxX);
+      player.x += (player.targetX - player.x) * 0.24;
+      player.x = clamp(player.x, config.worldMinX, config.worldMaxX);
+      player.group.position.x = player.x;
+      player.group.position.z = config.playerZ;
+    }
+
+    function updateRoad(dt) {
+      const speed = 7 + state.stage * 0.17;
+      state.roadOffset += speed * dt;
+
+      for (const d of state.decor) {
+        if (d.kind === "line") {
+          d.mesh.position.z += speed * dt;
+          if (d.mesh.position.z > 8) d.mesh.position.z -= 70.4;
+        } else if (d.kind === "side") {
+          d.mesh.position.z += speed * dt;
+          if (d.mesh.position.z > 10) d.mesh.position.z -= 74;
+        }
+      }
+    }
+
+    function updateProgress(dt) {
+      if (!state.bossMode) {
+        const progressSpeed = 11 + state.stage * 0.8;
+        state.distance += progressSpeed * dt;
+        if (state.distance >= 100) {
+          state.distance = 100;
+          enterBossMode();
+        }
+      }
+    }
+
+    function updateSpawns(dt) {
+      if (state.bossMode) return;
+
+      state.spawnTimer -= dt;
+      state.gateTimer -= dt;
+
+      if (state.spawnTimer <= 0) {
+        spawnZombieWave();
+        state.spawnTimer = Math.max(0.45, 1.15 - state.stage * 0.035);
+      }
+
+      if (state.gateTimer <= 0) {
+        spawnGatePair();
+        state.gateTimer = 3.0 + Math.random() * 0.8;
+      }
+    }
+
+    function spawnZombieWave() {
+      const count = Math.min(5, 1 + Math.floor(state.stage / 3) + (Math.random() < 0.35 ? 1 : 0));
+
+      for (let i = 0; i < count; i++) {
+        const kindRoll = Math.random();
+        let type = "normal";
+        if (state.stage >= 4 && kindRoll > 0.78) type = "shield";
+        else if (state.stage >= 3 && kindRoll > 0.58) type = "fast";
+
+        const typeData = {
+          normal: { hp: 18, damage: 4, speed: 4.25, radius: 0.48, reward: 2 },
+          fast: { hp: 14, damage: 5, speed: 5.7, radius: 0.38, reward: 3 },
+          shield: { hp: 42, damage: 10, speed: 3.45, radius: 0.6, reward: 5 }
+        }[type];
+
+        const zombie = {
+          type,
+          x: rand(-2.35, 2.35),
+          z: config.spawnZ - i * rand(0.85, 1.5),
+          hp: Math.floor(typeData.hp + state.stage * 6),
+          maxHp: Math.floor(typeData.hp + state.stage * 6),
+          damage: Math.floor(typeData.damage + state.stage * 0.55),
+          speed: typeData.speed + state.stage * 0.08 + rand(-0.2, 0.2),
+          radius: typeData.radius,
+          reward: typeData.reward,
+          dead: false,
+          collided: false
+        };
+        createZombieMesh(zombie);
+        state.zombies.push(zombie);
+      }
+    }
+
+    function spawnGatePair() {
+      const a = makeGateValue();
+      let b = makeGateValue();
+      let safety = 0;
+      while (a.label === b.label && safety < 10) {
+        b = makeGateValue();
+        safety++;
+      }
+
+      const left = createGate(-1.55, config.spawnZ, a);
+      const right = createGate(1.55, config.spawnZ, b);
+      createGateMesh(left);
+      createGateMesh(right);
+      state.gates.push(left, right);
+    }
+
+    function makeGateValue() {
+      const s = state.stage;
+      const candidates = [];
+
+      candidates.push({ op: "+", value: 10 + s * 2, good: true });
+      candidates.push({ op: "+", value: 20 + s * 3, good: true });
+      candidates.push({ op: "+", value: 30 + s * 4, good: true });
+
+      if (s >= 2) candidates.push({ op: "-", value: 8 + s * 3, good: false });
+      if (s >= 3) candidates.push({ op: "×", value: 2, good: true });
+      if (s >= 6 && Math.random() < 0.35) candidates.push({ op: "×", value: 3, good: true });
+      if (s >= 5) candidates.push({ op: "÷", value: 2, good: false });
+
+      const picked = candidates[Math.floor(Math.random() * candidates.length)];
+      return { ...picked, label: `${picked.op}${picked.value}` };
+    }
+
+    function createGate(x, z, data) {
+      return {
+        x, z,
+        w: 1.55,
+        d: 0.55,
+        radius: 0.82,
+        op: data.op,
+        value: data.value,
+        label: data.label,
+        good: data.good,
+        used: false,
+        speed: 6.7 + state.stage * 0.18,
+        mesh: null
+      };
+    }
+
+    function updateGates(dt) {
+      for (const gate of state.gates) {
+        gate.z += gate.speed * dt;
+        if (gate.mesh) {
+          gate.mesh.position.z = gate.z;
+          gate.mesh.rotation.y = Math.sin(performance.now() / 280 + gate.x) * 0.035;
+        }
+
+        if (!gate.used && Math.abs(gate.z - config.playerZ) < 0.78 && Math.abs(gate.x - player.x) < gate.radius) {
+          gate.used = true;
+          applyGate(gate);
+          if (gate.mesh) {
+            world.remove(gate.mesh);
+            disposeObject(gate.mesh);
+          }
+        }
+      }
+
+      state.gates = state.gates.filter(g => {
+        const keep = g.z < config.removeZ && !g.used;
+        if (!keep && g.mesh) {
+          world.remove(g.mesh);
+          disposeObject(g.mesh);
+        }
+        return keep;
+      });
+    }
+
+    function applyGate(gate) {
+      const before = state.soldiers;
+      const hero = heroData[state.selectedHero];
+      let v = gate.value;
+
+      if (gate.good && hero.gateBonus > 1) {
+        if (gate.op === "+") v = Math.ceil(v * hero.gateBonus);
+        if (gate.op === "×") v = Math.max(2, Math.round(v * hero.gateBonus));
+      }
+
+      if (gate.op === "+") state.soldiers += v;
+      if (gate.op === "-") state.soldiers -= v;
+      if (gate.op === "×") state.soldiers *= v;
+      if (gate.op === "÷") state.soldiers = Math.floor(state.soldiers / v);
+
+      state.soldiers = Math.max(0, Math.floor(state.soldiers));
+      const diff = state.soldiers - before;
+
+      addScreenText(diff >= 0 ? `+${diff} 병사` : `${diff} 병사`, diff >= 0 ? "#22c55e" : "#ef4444", 50, 62);
+      burstParticles(player.x, 0.65, config.playerZ, diff >= 0 ? 0x22c55e : 0xef4444, 16);
+      rebuildSoldierVisuals();
+    }
+
+    function updateZombies(dt) {
+      const hero = heroData[state.selectedHero];
+
+      for (const z of state.zombies) {
+        z.z += z.speed * dt;
+        if (z.mesh) {
+          z.mesh.position.set(z.x, 0, z.z);
+          z.mesh.rotation.y = Math.sin(performance.now() / 240 + z.x) * 0.22;
+          z.mesh.position.y = Math.abs(Math.sin(performance.now() / 180 + z.x)) * 0.04;
+        }
+
+        if (!z.collided && Math.abs(z.z - config.playerZ) < 0.72 && Math.abs(z.x - player.x) < (z.radius + player.radius)) {
+          z.collided = true;
+          const damage = Math.ceil(z.damage * hero.damageTaken);
+          state.soldiers -= damage;
+          addScreenText(`-${damage}`, "#ef4444", 50, 64);
+          burstParticles(player.x, 0.7, config.playerZ, 0xef4444, 12);
+          rebuildSoldierVisuals();
+        }
+
+        if (z.hp <= 0 && !z.dead) {
+          z.dead = true;
+          state.gold += z.reward;
+          addScreenText(`+${z.reward}G`, "#facc15", worldToScreenX(z.x, z.z), 48);
+          burstParticles(z.x, 0.9, z.z, 0x22c55e, 14);
+        }
+      }
+
+      state.zombies = state.zombies.filter(z => {
+        const keep = z.z < config.removeZ && !z.dead && !z.collided;
+        if (!keep && z.mesh) {
+          world.remove(z.mesh);
+          disposeObject(z.mesh);
+        }
+        return keep;
+      });
+    }
+
+    function updateBullets(dt) {
+      state.shootTimer -= dt;
+      const interval = Math.max(0.12, 0.38 - (upgrades.fireRate - 1) * 0.035);
+
+      if (state.shootTimer <= 0) {
+        shoot();
+        state.shootTimer = interval;
+      }
+
+      for (const b of state.bullets) {
+        b.z -= b.speed * dt;
+        if (b.mesh) b.mesh.position.set(b.x, 0.72, b.z);
+
+        if (b.hit) continue;
+
+        if (state.bossMode && state.boss && Math.abs(b.z - state.boss.z) < 0.9 && Math.abs(b.x - state.boss.x) < state.boss.radius) {
+          b.hit = true;
+          state.boss.hp -= b.damage;
+          burstParticles(b.x, 1.1, b.z, 0xfacc15, 4);
+          continue;
+        }
+
+        for (const z of state.zombies) {
+          if (Math.abs(b.z - z.z) < 0.42 && Math.abs(b.x - z.x) < z.radius) {
+            b.hit = true;
+            z.hp -= b.damage;
+            burstParticles(b.x, 0.9, b.z, 0xfacc15, 4);
+            break;
+          }
+        }
+      }
+
+      state.bullets = state.bullets.filter(b => {
+        const keep = b.z > config.spawnZ - 3 && !b.hit;
+        if (!keep && b.mesh) {
+          world.remove(b.mesh);
+          disposeObject(b.mesh);
+        }
+        return keep;
+      });
+    }
+
+    function shoot() {
+      if (state.soldiers <= 0) return;
+
+      const hero = heroData[state.selectedHero];
+      const baseDamage = 8 + (upgrades.attack - 1) * 4;
+      const soldierBonus = Math.floor(Math.sqrt(state.soldiers) * 1.8);
+      const damage = Math.floor((baseDamage + soldierBonus) * hero.attackBonus);
+
+      const lanes = Math.min(5, 1 + Math.floor(state.soldiers / 25));
+      const spacing = 0.22;
+      const start = -(lanes - 1) * spacing / 2;
+
+      for (let i = 0; i < lanes; i++) {
+        const bullet = {
+          x: player.x + start + i * spacing,
+          z: config.playerZ - 0.65,
+          speed: 13.2,
+          damage,
+          hit: false,
+          mesh: null
+        };
+        createBulletMesh(bullet);
+        state.bullets.push(bullet);
+      }
+    }
+
+    function enterBossMode() {
+      state.bossMode = true;
+      for (const g of state.gates) {
+        if (g.mesh) {
+          world.remove(g.mesh);
+          disposeObject(g.mesh);
+        }
+      }
+      for (const z of state.zombies) {
+        if (z.mesh) {
+          world.remove(z.mesh);
+          disposeObject(z.mesh);
+        }
+      }
+      state.gates = [];
+      state.zombies = [];
+
+      state.boss = {
+        x: 0,
+        z: -9.2,
+        radius: 1.25,
+        hp: 170 + state.stage * 90,
+        maxHp: 170 + state.stage * 90,
+        damage: 4 + Math.floor(state.stage * 1.15),
+        mesh: null
+      };
+
+      createBossMesh(state.boss);
+      ui.bossBar.style.display = "block";
+      addScreenText("BOSS 등장!", "#facc15", 50, 28);
+    }
+
+    function updateBoss(dt) {
+      if (!state.bossMode || !state.boss) {
+        ui.bossBar.style.display = "none";
+        return;
+      }
+
+      const b = state.boss;
+      b.x = Math.sin(performance.now() / 520) * 1.35;
+      if (b.mesh) {
+        b.mesh.position.x = b.x;
+        b.mesh.rotation.y = Math.sin(performance.now() / 340) * 0.12;
+        b.mesh.position.y = Math.sin(performance.now() / 210) * 0.04;
+      }
+
+      state.bossAttackTimer -= dt;
+      if (state.bossAttackTimer <= 0) {
+        const hero = heroData[state.selectedHero];
+        const damage = Math.ceil(b.damage * hero.damageTaken);
+        state.soldiers -= damage;
+        addScreenText(`보스 공격 -${damage}`, "#ef4444", 50, 66);
+        burstParticles(player.x, 0.9, config.playerZ, 0xef4444, 9);
+        rebuildSoldierVisuals();
+        state.bossAttackTimer = 1.0;
+      }
+
+      const ratio = Math.max(0, b.hp / b.maxHp);
+      ui.bossFill.style.width = `${ratio * 100}%`;
+      ui.bossText.textContent = `BOSS ${Math.max(0, Math.ceil(b.hp))} / ${b.maxHp}`;
+
+      if (b.hp <= 0) {
+        b.hp = 0;
+        const reward = 70 + state.stage * 25 + Math.floor(state.soldiers / 10);
+        state.gold += reward;
+        burstParticles(b.x, 1.4, b.z, 0xfacc15, 30);
+        finishGame(true, reward);
+      }
+    }
+
+    function burstParticles(x, y, z, color, count) {
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.4,
+        roughness: 0.4
+      });
+
+      for (let i = 0; i < count; i++) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.035, 0.075), 8, 6), mat.clone());
+        m.position.set(x, y, z);
+        m.castShadow = false;
+        world.add(m);
+        state.particles.push({
+          mesh: m,
+          vx: rand(-2.3, 2.3),
+          vy: rand(1.2, 4.5),
+          vz: rand(-2.5, 2.5),
+          life: rand(0.35, 0.75)
+        });
+      }
+    }
+
+    function updateParticles(dt) {
+      for (const p of state.particles) {
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.vy -= 7.5 * dt;
+        p.life -= dt;
+        p.mesh.scale.multiplyScalar(0.985);
+      }
+
+      state.particles = state.particles.filter(p => {
+        const keep = p.life > 0;
+        if (!keep) {
+          world.remove(p.mesh);
+          disposeObject(p.mesh);
+        }
+        return keep;
+      });
+    }
+
+    function animateSoldiers(dt) {
+      const time = performance.now();
+      state.soldiers3D.forEach((s, i) => {
+        s.position.y = Math.abs(Math.sin(time / 130 + i * 0.55)) * 0.045;
+        s.rotation.y = Math.sin(time / 260 + i) * 0.08;
+      });
+    }
+
+    // ---------- UI ----------
+    function showScreen(name) {
+      Object.values(screens).forEach(s => s.classList.remove("active"));
+      screens[name].classList.add("active");
+      state.screen = name;
+
+      if (name === "start") {
+        state.running = false;
+        stopLoop();
+        updateMenuUI();
+      }
+
+      if (name === "game") {
+        resize();
+      }
+    }
+
+    function updateGameUI() {
+      ui.stage.textContent = state.stage;
+      ui.soldiers.textContent = Math.floor(Math.max(0, state.soldiers));
+      ui.gold.textContent = state.gold;
+      ui.distance.textContent = state.bossMode ? "BOSS" : `${Math.floor(state.distance)}%`;
+    }
+
+    function updateMenuUI() {
+      ui.menuGold.textContent = state.gold;
+      ui.startLevel.textContent = upgrades.startSoldiers;
+      ui.startBonus.textContent = (upgrades.startSoldiers - 1) * 5;
+      ui.attackLevel.textContent = upgrades.attack;
+      ui.rateLevel.textContent = upgrades.fireRate;
+
+      document.querySelectorAll(".hero-option").forEach(btn => {
+        btn.classList.toggle("selected", btn.dataset.hero === state.selectedHero);
+      });
+
+      setUpgradeButton("upgradeStartBtn", getUpgradeCost("startSoldiers"), "startSoldiers");
+      setUpgradeButton("upgradeAttackBtn", getUpgradeCost("attack"), "attack");
+      setUpgradeButton("upgradeRateBtn", getUpgradeCost("fireRate"), "fireRate");
+    }
+
+    function setUpgradeButton(id, cost, key) {
+      const btn = document.getElementById(id);
+      btn.textContent = `${cost}G`;
+      btn.disabled = state.gold < cost;
+      btn.onclick = () => buyUpgrade(key);
+    }
+
+    function getUpgradeCost(key) {
+      const base = { startSoldiers: 100, attack: 120, fireRate: 140 }[key];
+      return Math.floor(base * Math.pow(1.55, upgrades[key] - 1));
+    }
+
+    function buyUpgrade(key) {
+      const cost = getUpgradeCost(key);
+      if (state.gold < cost) {
+        showToast("골드가 부족합니다");
+        return;
+      }
+      state.gold -= cost;
+      upgrades[key] += 1;
+      saveGame();
+      updateMenuUI();
+      showToast("업그레이드 완료!");
+    }
+
+    function showToast(text) {
+      ui.toast.textContent = text;
+      ui.toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => ui.toast.classList.remove("show"), 950);
+    }
+
+    function addScreenText(text, color, xPercent = 50, yPercent = 50) {
+      const el = document.createElement("div");
+      el.className = "float-label";
+      el.textContent = text;
+      el.style.color = color;
+      el.style.left = `${xPercent}%`;
+      el.style.top = `${yPercent}%`;
+      floatingLayer.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+
+    function worldToScreenX(x, z) {
+      const v = new THREE.Vector3(x, 1, z);
+      v.project(camera);
+      return clamp((v.x * 0.5 + 0.5) * 100, 10, 90);
+    }
+
+    // ---------- 입력 ----------
+    function pointerToWorldX(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const nx = (event.clientX - rect.left) / rect.width;
+      return THREE.MathUtils.lerp(config.worldMinX, config.worldMaxX, nx);
+    }
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      input.dragging = true;
+      renderer.domElement.setPointerCapture(event.pointerId);
+      if (state.running) player.targetX = clamp(pointerToWorldX(event), config.worldMinX, config.worldMaxX);
+    });
+
+    renderer.domElement.addEventListener("pointermove", (event) => {
+      if (!input.dragging || !state.running) return;
+      player.targetX = clamp(pointerToWorldX(event), config.worldMinX, config.worldMaxX);
+    });
+
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      input.dragging = false;
+      try { renderer.domElement.releasePointerCapture(event.pointerId); } catch {}
+    });
+
+    renderer.domElement.addEventListener("pointercancel", () => {
+      input.dragging = false;
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft") input.left = true;
+      if (event.key === "ArrowRight") input.right = true;
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (event.key === "ArrowLeft") input.left = false;
+      if (event.key === "ArrowRight") input.right = false;
+    });
+
+    // ---------- 저장 ----------
+    function loadSave() {
+      try {
+        const raw = localStorage.getItem(saveKey);
+        return raw ? JSON.parse(raw) : { gold: 0, stage: 1, selectedHero: "captain", upgrades: { startSoldiers: 1, attack: 1, fireRate: 1 } };
+      } catch {
+        return { gold: 0, stage: 1, selectedHero: "captain", upgrades: { startSoldiers: 1, attack: 1, fireRate: 1 } };
+      }
+    }
+
+    function saveGame() {
+      localStorage.setItem(saveKey, JSON.stringify({
+        gold: state.gold,
+        stage: state.stage,
+        selectedHero: state.selectedHero,
+        upgrades
+      }));
+    }
+
+    // ---------- 유틸 ----------
+    function resize() {
+      const rect = wrap.getBoundingClientRect();
+      const w = Math.max(1, rect.width);
+      const h = Math.max(1, rect.height);
+      renderer.setSize(w, h, false);
+      if (composer) composer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+
+    function disposeObject(obj) {
+      obj.traverse?.((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(m => {
+              if (m.map) m.map.dispose();
+              m.dispose();
+            });
+          } else {
+            if (child.material.map) child.material.map.dispose();
+            child.material.dispose();
+          }
+        }
+      });
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    // ---------- 버튼 ----------
+    document.getElementById("startButton").addEventListener("click", startGame);
+    document.getElementById("nextButton").addEventListener("click", startGame);
+    document.getElementById("menuButton").addEventListener("click", () => showScreen("start"));
+
+    document.querySelectorAll(".hero-option").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.selectedHero = btn.dataset.hero;
+        saveGame();
+        updateMenuUI();
+        if (player.group) rebuildSoldierVisuals();
+      });
+    });
+
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stopLoop();
+      else if (state.running) {
+        state.lastTime = performance.now();
+        startLoop();
+      }
+    });
+
+    // 시작 화면 배경에서도 3D 프리뷰가 보이면 복잡하므로 메뉴는 HTML UI 중심으로 둔다.
+  </script>
+</body>
+</html>
