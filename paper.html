@@ -538,8 +538,25 @@
             }
         }
 
+        function wasMyTrailCut() {
+            if (!myPlayer || !myPlayer.isAlive || myPlayer.trail.length === 0) return false;
+            const myTrailKeys = new Set(myPlayer.trail.map(cell => cellKey(cell.x, cell.y)));
+
+            for (const uid in players) {
+                if (uid === myUid) continue;
+                const other = players[uid];
+                if (!other || !other.isAlive) continue;
+
+                if (myTrailKeys.has(cellKey(other.x, other.y))) return true;
+                if ((other.trail || []).some(cell => myTrailKeys.has(cellKey(cell.x, cell.y)))) return true;
+            }
+            return false;
+        }
+
         function updateGameLogic() {
             if (!myPlayer || !myPlayer.isAlive) return;
+            // 상대 문서를 직접 수정할 권한이 없어도, 피해자가 자기 꼬리 교차를 감지해 스스로 죽습니다.
+            if (wasMyTrailCut()) { die(); return; }
 
             myPlayer.dx = myPlayer.nextDx;
             myPlayer.dy = myPlayer.nextDy;
@@ -610,7 +627,7 @@
         }
 
         function die() {
-            if (!myPlayer) return;
+            if (!myPlayer || !myPlayer.isAlive) return;
             myPlayer.isAlive = false;
             syncToFirebase();
             clearInterval(gameLoopInterval);
