@@ -325,7 +325,7 @@
             if(syncInterval) clearInterval(syncInterval);
 
             gameLoopInterval = setInterval(updateGameLogic, GAME_TICK); 
-            syncInterval = setInterval(syncToFirebase, 700);
+            syncInterval = setInterval(syncToFirebase, 200);
             requestAnimationFrame(drawGame);
         }
 
