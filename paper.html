@@ -282,6 +282,16 @@
             return null;
         }
 
+        function getCurrentClaimIds() {
+            const claimIds = [];
+            Object.values(players).forEach(player => {
+                (player.recentClaims || []).forEach(claim => {
+                    if (claim && claim.id) claimIds.push(claim.id);
+                });
+            });
+            return claimIds.slice(-100);
+        }
+
         function getProjectedPlayer(player) {
             if (!player || !player.isAlive || player.uid === myUid) return player;
             const projected = { ...player, trail: [...(player.trail || [])] };
@@ -303,6 +313,25 @@
                 }
             }
             return projected;
+        }
+
+        function getPlayerWithResolvedTerritory(uid, player, allPlayers) {
+            if (!player || !Array.isArray(player.territory)) return player;
+            const appliedIds = new Set(player.appliedClaimIds || []);
+            const claimedKeys = new Set();
+
+            Object.entries(allPlayers).forEach(([claimantUid, claimant]) => {
+                if (claimantUid === uid) return;
+                (claimant.recentClaims || []).forEach(claim => {
+                    if (!claim?.id || appliedIds.has(claim.id)) return;
+                    (claim.cells || []).forEach(cell => claimedKeys.add(cellKey(cell.x, cell.y)));
+                });
+            });
+            if (claimedKeys.size === 0) return player;
+            return {
+                ...player,
+                territory: player.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)))
+            };
         }
 
         function scheduleNextSync() {
@@ -374,6 +403,8 @@
                     playerData.score = myPlayer.score;
                     playerData.percent = myPlayer.percent;
                     playerData.territoryRevision = myPlayer.territoryRevision || 0;
+                    playerData.recentClaims = myPlayer.recentClaims || [];
+                    playerData.appliedClaimIds = myPlayer.appliedClaimIds || [];
                 }
                 await setDoc(playerRef, playerData, { merge: true });
             } catch (error) {
@@ -420,7 +451,8 @@
                 dx: 0, dy: -1, nextDx: 0, nextDy: -1,
                 trail: [], territory: [],
                 score: 9, percent: (9 / TOTAL_AREA * 100).toFixed(4), // 소수점 4자리까지 표시 (맵이 커져서)
-                isAlive: true, territoryRevision: 0, lastActive: Date.now()
+                isAlive: true, territoryRevision: 0, recentClaims: [],
+                appliedClaimIds: getCurrentClaimIds(), lastActive: Date.now()
             };
 
             for (let dy = -1; dy <= 1; dy++) {
@@ -472,6 +504,7 @@
                         myPlayer.territoryRevision = remoteRevision;
                     }
                 }
+                applyPendingClaimsToMyTerritory();
                 if (myPlayer && myPlayer.isAlive) {
                     players[myUid] = { ...(players[myUid] || {}), ...myPlayer };
                 }
@@ -600,6 +633,41 @@
             }
         }
 
+        function applyPendingClaimsToMyTerritory() {
+            if (!myPlayer || !myPlayer.isAlive || !Array.isArray(myPlayer.territory)) return;
+            const appliedIds = new Set(myPlayer.appliedClaimIds || []);
+            let territory = myPlayer.territory;
+            let territoryChanged = false;
+            let claimsChanged = false;
+
+            for (const uid in players) {
+                if (uid === myUid) continue;
+                const other = players[uid];
+                for (const claim of other?.recentClaims || []) {
+                    if (!claim?.id || appliedIds.has(claim.id)) continue;
+                    appliedIds.add(claim.id);
+                    claimsChanged = true;
+                    const claimedKeys = new Set((claim.cells || []).map(cell => cellKey(cell.x, cell.y)));
+                    if (claimedKeys.size === 0) continue;
+                    const trimmed = territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                    if (trimmed.length !== territory.length) {
+                        territory = trimmed;
+                        territoryChanged = true;
+                    }
+                }
+            }
+
+            if (!claimsChanged) return;
+            myPlayer.appliedClaimIds = Array.from(appliedIds).slice(-100);
+            if (territoryChanged) {
+                myPlayer.territory = territory;
+                myPlayer.score = territory.length;
+                myPlayer.percent = ((territory.length / TOTAL_AREA) * 100).toFixed(4);
+                myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
+            }
+            syncToFirebase(true);
+        }
+
         function wasMyTrailCut() {
             if (!myPlayer || !myPlayer.isAlive || myPlayer.trail.length === 0) return false;
             const myTrailKeys = new Set(myPlayer.trail.map(cell => cellKey(cell.x, cell.y)));
@@ -660,6 +728,7 @@
         }
 
         function captureTerritory() {
+            const previousTerritoryKeys = new Set(myPlayer.territory.map(cell => cellKey(cell.x, cell.y)));
             let map = Array(GRID_SIZE).fill().map(() => new Uint8Array(GRID_SIZE));
             myPlayer.territory.forEach(p => map[p.y][p.x] = 1);
             myPlayer.trail.forEach(p => map[p.y][p.x] = 1);
@@ -688,11 +757,25 @@
                     if(map[y][x] !== 2) newTerritory.push({x: x, y: y});
                 }
             }
-            removeClaimedCellsFromOtherPlayers(newTerritory);
+            const newlyClaimedCells = newTerritory.filter(cell => !previousTerritoryKeys.has(cellKey(cell.x, cell.y)));
+            const otherTerritoryKeys = new Set();
+            Object.entries(players).forEach(([uid, player]) => {
+                if (uid === myUid) return;
+                (player.territory || []).forEach(cell => otherTerritoryKeys.add(cellKey(cell.x, cell.y)));
+            });
+            const contestedCells = newlyClaimedCells.filter(cell => otherTerritoryKeys.has(cellKey(cell.x, cell.y)));
+            removeClaimedCellsFromOtherPlayers(contestedCells);
             myPlayer.territory = newTerritory;
             myPlayer.score = newTerritory.length;
             myPlayer.percent = ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4); // 맵이 커서 소수점 늘림
             myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
+            if (contestedCells.length > 0) {
+                const claim = {
+                    id: `${myPlayer.sessionId}-${myPlayer.territoryRevision}-${Date.now()}`,
+                    cells: contestedCells
+                };
+                myPlayer.recentClaims = [...(myPlayer.recentClaims || []), claim].slice(-5);
+            }
         }
 
         function die() {
@@ -748,11 +831,15 @@
             for (let y = startRow; y <= endRow; y++) { ctx.beginPath(); ctx.moveTo(startCol * CELL_SIZE, y * CELL_SIZE); ctx.lineTo(endCol * CELL_SIZE, y * CELL_SIZE); ctx.stroke(); }
 
             // 내 캐릭터는 서버 스냅샷 대신 로컬 위치를 그려 이름과 몸체가 즉시 따라오게 합니다.
-            const renderPlayers = {};
+            const projectedPlayers = {};
             Object.entries(players).forEach(([uid, player]) => {
-                renderPlayers[uid] = uid === myUid ? player : getProjectedPlayer(player);
+                projectedPlayers[uid] = uid === myUid ? player : getProjectedPlayer(player);
             });
-            if (myPlayer && myPlayer.isAlive) renderPlayers[myUid] = myPlayer;
+            if (myPlayer && myPlayer.isAlive) projectedPlayers[myUid] = myPlayer;
+            const renderPlayers = {};
+            Object.entries(projectedPlayers).forEach(([uid, player]) => {
+                renderPlayers[uid] = getPlayerWithResolvedTerritory(uid, player, projectedPlayers);
+            });
 
             // 플레이어 그리기 (화면에 보이는 땅만 그리도록 최적화)
             for (const uid in renderPlayers) {
