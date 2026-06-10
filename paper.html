@@ -16,65 +16,52 @@
             background-color: #fff0f5;
             background-image: radial-gradient(#ffb6c1 2px, transparent 2px);
             background-size: 30px 30px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             height: 100vh;
+            width: 100vw;
             overflow: hidden;
             color: #555;
         }
 
         #game-container {
-            display: flex;
-            gap: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 20px;
-            border-radius: 25px;
-            box-shadow: 0 15px 35px rgba(255, 182, 193, 0.4), inset 0 0 10px rgba(255,255,255,1);
             position: relative;
-            max-width: 100%;
-            max-height: 100vh;
-            box-sizing: border-box;
-            backdrop-filter: blur(10px);
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
         }
 
         #canvas-wrapper {
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: absolute;
+            inset: 0;
             touch-action: none; /* 모바일에서 스와이프할 때 화면 안 움직이게 고정 */
         }
 
         /* 게임 도화지 */
         canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
             background-color: #ffffff;
-            border: 6px solid #ffb6c1;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(255, 182, 193, 0.3);
-            max-width: 100%;
-            max-height: 70vh;
-            object-fit: contain;
         }
 
         #sidebar {
-            width: 260px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+            position: absolute;
+            top: max(8px, env(safe-area-inset-top));
+            right: max(8px, env(safe-area-inset-right));
+            width: min(165px, 44vw);
+            z-index: 5;
+            pointer-events: none;
         }
 
         .panel {
-            background: white;
-            border: 3px solid #ffe4e1;
-            border-radius: 20px;
-            padding: 20px;
-            text-align: center;
-            height: 100%;
-            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.2);
+            background: rgba(255, 255, 255, 0.72);
+            border-radius: 12px;
+            padding: 7px 9px;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(255, 182, 193, 0.25);
+            backdrop-filter: blur(6px);
         }
 
-        .panel h2 { margin: 0 0 15px 0; color: #ff69b4; font-size: 24px; text-shadow: 1px 1px 0px #ffe4e1; }
+        .panel h2 { margin: 0 0 4px 0; color: #ff69b4; font-size: 16px; text-shadow: 1px 1px 0px #ffe4e1; }
 
         /* 접속자 목록 디자인 */
         #player-list {
@@ -82,23 +69,20 @@
             padding: 0;
             margin: 0;
             text-align: left;
-            max-height: 60vh;
-            overflow-y: auto;
+            max-height: 35vh;
+            overflow: hidden;
         }
 
         #player-list li {
-            padding: 12px 15px;
-            margin-bottom: 10px;
-            background: #fffafa;
-            border-radius: 12px;
-            border-left: 8px solid #ccc;
-            font-size: 18px;
+            padding: 1px 0;
+            margin: 0;
+            background: transparent;
+            border: 0;
+            font-size: 13px;
             display: flex;
             justify-content: space-between;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-            transition: transform 0.2s;
+            gap: 6px;
         }
-        #player-list li:hover { transform: scale(1.02); }
 
         /* 화면 덮개 (시작/종료) */
         #login-screen, #game-over-screen {
@@ -110,7 +94,6 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            border-radius: 25px;
             z-index: 10;
         }
 
@@ -154,13 +137,6 @@
         h1 { color: #ff1493; margin-bottom: 10px; font-size: 42px; text-shadow: 2px 2px 0px #ffe4e1; text-align: center; }
         #game-over-text { color: #ff69b4; font-size: 28px; margin-bottom: 30px; white-space: pre-line; text-align: center; line-height: 1.5;}
 
-        /* 모바일 반응형 */
-        @media (max-width: 900px) {
-            #game-container { flex-direction: column; padding: 10px; border-radius: 0; height: 100vh; justify-content: flex-start; background: transparent; box-shadow: none;}
-            canvas { max-height: 55vh; border-radius: 15px;}
-            #sidebar { width: 100%; flex: 1; }
-            #login-screen, #game-over-screen { border-radius: 0; }
-        }
     </style>
 </head>
 <body>
@@ -225,6 +201,14 @@
         // 🌟 게임 기본 설정
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
         
         // 🚀 대규모 맵 설정 (20명 수용 가능하도록 250칸으로 대폭 확장)
         const GRID_SIZE = 250; 
@@ -581,9 +565,14 @@
             for (let x = startCol; x <= endCol; x++) { ctx.beginPath(); ctx.moveTo(x * CELL_SIZE, startRow * CELL_SIZE); ctx.lineTo(x * CELL_SIZE, endRow * CELL_SIZE); ctx.stroke(); }
             for (let y = startRow; y <= endRow; y++) { ctx.beginPath(); ctx.moveTo(startCol * CELL_SIZE, y * CELL_SIZE); ctx.lineTo(endCol * CELL_SIZE, y * CELL_SIZE); ctx.stroke(); }
 
+            // 내 캐릭터는 서버 스냅샷 대신 로컬 위치를 그려 이름과 몸체가 즉시 따라오게 합니다.
+            const renderPlayers = myPlayer && myPlayer.isAlive
+                ? { ...players, [myUid]: myPlayer }
+                : players;
+
             // 플레이어 그리기 (화면에 보이는 땅만 그리도록 최적화)
-            for (const uid in players) {
-                const p = players[uid];
+            for (const uid in renderPlayers) {
+                const p = renderPlayers[uid];
                 if (!p.isAlive) continue; 
                 
                 ctx.fillStyle = p.color;
@@ -624,11 +613,8 @@
                 ctx.fillStyle = '#666';
                 ctx.font = 'bold 14px "Jua", sans-serif';
                 ctx.textAlign = 'center';
-                if (uid === myUid) {
-                    ctx.fillText('⭐ ' + p.name, p.x * CELL_SIZE + (CELL_SIZE/2), p.y * CELL_SIZE - 8);
-                } else {
-                    ctx.fillText(p.name, p.x * CELL_SIZE + (CELL_SIZE/2), p.y * CELL_SIZE - 8);
-                }
+                const displayName = shortName(p.name);
+                ctx.fillText(uid === myUid ? `⭐ ${displayName}` : displayName, p.x * CELL_SIZE + (CELL_SIZE/2), p.y * CELL_SIZE - 8);
             }
 
             ctx.restore();
@@ -647,8 +633,8 @@
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            for (const uid in players) {
-                const p = players[uid];
+            for (const uid in renderPlayers) {
+                const p = renderPlayers[uid];
                 if (!p.isAlive) continue; 
                 
                 ctx.fillStyle = p.color;
@@ -675,17 +661,19 @@
         function updatePlayerList() {
             const list = document.getElementById('player-list');
             list.innerHTML = ''; 
-            const sortedPlayers = Object.values(players).filter(p => p.isAlive).sort((a, b) => (b.score || 0) - (a.score || 0));
+            const rankingPlayers = myPlayer && myPlayer.isAlive
+                ? { ...players, [myUid]: myPlayer }
+                : players;
+            const sortedPlayers = Object.values(rankingPlayers).filter(p => p.isAlive).sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 5);
 
             sortedPlayers.forEach(p => {
                 const li = document.createElement('li');
-                li.style.borderLeftColor = p.color;
                 const percent = p.percent || "0.0000";
                 const nameText = p.uid === myUid ? `⭐ ${shortName(p.name)}` : shortName(p.name);
                 const nameSpan = document.createElement('span');
                 nameSpan.textContent = nameText;
                 const percentSpan = document.createElement('span');
-                percentSpan.style.fontSize = '16px';
+                percentSpan.style.fontSize = '12px';
                 percentSpan.style.color = '#888';
                 percentSpan.textContent = `${percent}%`;
                 li.append(nameSpan, percentSpan);
