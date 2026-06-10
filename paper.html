@@ -678,7 +678,6 @@
                 if (!other || !other.isAlive) continue;
 
                 if (myTrailKeys.has(cellKey(other.x, other.y))) return true;
-                if ((other.trail || []).some(cell => myTrailKeys.has(cellKey(cell.x, cell.y)))) return true;
             }
             return false;
         }
