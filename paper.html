@@ -218,21 +218,25 @@
         const TOTAL_AREA = GRID_SIZE * GRID_SIZE;
 
         const GAME_TICK = 100; // 이동 속도
-        const SYNC_INTERVAL = 1000; // Firestore 무료 한도를 과도하게 소모하지 않도록 위치 동기화 완화
-        const ACTIVE_TIMEOUT = 10000;
+        const IDLE_SYNC_INTERVAL = 8000; // 자기 땅 안에서는 접속 유지용으로만 드물게 저장
+        const TRAIL_SYNC_INTERVAL = 1200; // 꼬리가 노출된 동안에는 충돌 판정을 위해 조금 더 자주 저장
+        const MAX_PREDICTION_TICKS = 20; // 서버 위치에서 최대 2초까지만 예측
+        const ACTIVE_TIMEOUT = 30000;
 
         let myUid = null;
         let myPlayer = null;
         let players = {}; 
 
         let gameLoopInterval = null;
-        let syncInterval = null;
+        let syncTimeout = null;
         let unsubscribePlayers = null;
         let inputControlsReady = false;
         let animationStarted = false;
         let gameSessionId = null;
         let authReady = false;
         let playersReady = false;
+        let syncInFlight = false;
+        let syncPending = null;
 
         // 보조 함수
         function isMyTerritory(x, y, territory = []) { return territory.some(t => t.x === x && t.y === y); }
@@ -278,6 +282,39 @@
             return null;
         }
 
+        function getProjectedPlayer(player) {
+            if (!player || !player.isAlive || player.uid === myUid) return player;
+            const projected = { ...player, trail: [...(player.trail || [])] };
+            const elapsed = Math.max(0, Date.now() - (player.lastActive || Date.now()));
+            const ticks = Math.min(MAX_PREDICTION_TICKS, Math.floor(elapsed / GAME_TICK));
+            const dx = Number.isFinite(player.nextDx) ? player.nextDx : (player.dx || 0);
+            const dy = Number.isFinite(player.nextDy) ? player.nextDy : (player.dy || 0);
+
+            for (let i = 0; i < ticks; i++) {
+                const nextX = projected.x + dx;
+                const nextY = projected.y + dy;
+                if (nextX < 0 || nextX >= GRID_SIZE || nextY < 0 || nextY >= GRID_SIZE) break;
+                projected.x = nextX;
+                projected.y = nextY;
+                if (!isMyTerritory(nextX, nextY, projected.territory)) {
+                    if (!isMyTrail(nextX, nextY, projected.trail)) projected.trail.push({ x: nextX, y: nextY });
+                } else if (projected.trail.length > 0) {
+                    projected.trail = [];
+                }
+            }
+            return projected;
+        }
+
+        function scheduleNextSync() {
+            if (syncTimeout) clearTimeout(syncTimeout);
+            if (!myPlayer || !myPlayer.isAlive) return;
+            const delay = myPlayer.trail.length > 0 ? TRAIL_SYNC_INTERVAL : IDLE_SYNC_INTERVAL;
+            syncTimeout = setTimeout(async () => {
+                await syncToFirebase(false);
+                scheduleNextSync();
+            }, delay);
+        }
+
         function getRandomColor() {
             const colors = ['#FFB6C1', '#87CEFA', '#98FB98', '#FFDAB9', '#E6E6FA', '#F08080', '#20B2AA', '#FFA07A'];
             return colors[Math.floor(Math.random() * colors.length)];
@@ -308,6 +345,11 @@
 
         async function syncToFirebase(includeTerritory = false) {
             if (!myUid || !myPlayer) return;
+            if (syncInFlight) {
+                syncPending = syncPending === true || includeTerritory;
+                return;
+            }
+            syncInFlight = true;
             try {
                 const playerRef = doc(db, 'games', appId, 'players', myUid);
                 myPlayer.lastActive = Date.now();
@@ -336,6 +378,13 @@
                 await setDoc(playerRef, playerData, { merge: true });
             } catch (error) {
                 console.warn('Firebase 동기화 실패:', error);
+            } finally {
+                syncInFlight = false;
+                if (syncPending !== null) {
+                    const shouldIncludeTerritory = syncPending;
+                    syncPending = null;
+                    syncToFirebase(shouldIncludeTerritory);
+                }
             }
         }
 
@@ -350,9 +399,9 @@
             }
 
             if (gameLoopInterval) clearInterval(gameLoopInterval);
-            if (syncInterval) clearInterval(syncInterval);
+            if (syncTimeout) clearTimeout(syncTimeout);
             gameLoopInterval = null;
-            syncInterval = null;
+            syncTimeout = null;
 
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('game-over-screen').classList.add('hidden');
@@ -390,7 +439,7 @@
             }
 
             gameLoopInterval = setInterval(updateGameLogic, GAME_TICK); 
-            syncInterval = setInterval(syncToFirebase, SYNC_INTERVAL);
+            scheduleNextSync();
             if (!animationStarted) {
                 animationStarted = true;
                 requestAnimationFrame(drawGame);
@@ -441,8 +490,21 @@
 
         function setDirection(dx, dy) {
             if (!myPlayer || !myPlayer.isAlive) return;
-            if (dx !== 0 && myPlayer.dy !== 0) { myPlayer.nextDx = dx; myPlayer.nextDy = 0; }
-            if (dy !== 0 && myPlayer.dx !== 0) { myPlayer.nextDx = 0; myPlayer.nextDy = dy; }
+            let changed = false;
+            if (dx !== 0 && myPlayer.dy !== 0 && (myPlayer.nextDx !== dx || myPlayer.nextDy !== 0)) {
+                myPlayer.nextDx = dx;
+                myPlayer.nextDy = 0;
+                changed = true;
+            }
+            if (dy !== 0 && myPlayer.dx !== 0 && (myPlayer.nextDx !== 0 || myPlayer.nextDy !== dy)) {
+                myPlayer.nextDx = 0;
+                myPlayer.nextDy = dy;
+                changed = true;
+            }
+            if (changed) {
+                syncToFirebase(false);
+                scheduleNextSync();
+            }
         }
 
         function setupSwipeControls() {
@@ -544,7 +606,7 @@
 
             for (const uid in players) {
                 if (uid === myUid) continue;
-                const other = players[uid];
+                const other = getProjectedPlayer(players[uid]);
                 if (!other || !other.isAlive) continue;
 
                 if (myTrailKeys.has(cellKey(other.x, other.y))) return true;
@@ -569,7 +631,8 @@
 
             for (const uid in players) {
                 if (uid !== myUid && players[uid].isAlive) {
-                    if (isMyTrail(nextX, nextY, players[uid].trail)) {
+                    const other = getProjectedPlayer(players[uid]);
+                    if (isMyTrail(nextX, nextY, other.trail)) {
                         killPlayerIfSameSession(uid, players[uid].sessionId);
                     }
                 }
@@ -584,9 +647,15 @@
                     captureTerritory(); 
                     myPlayer.trail = [];
                     syncToFirebase(true);
+                    scheduleNextSync();
                 }
             } else {
+                const startedTrail = myPlayer.trail.length === 0;
                 myPlayer.trail.push({ x: nextX, y: nextY });
+                if (startedTrail) {
+                    syncToFirebase(false);
+                    scheduleNextSync();
+                }
             }
         }
 
@@ -631,9 +700,9 @@
             myPlayer.isAlive = false;
             syncToFirebase();
             clearInterval(gameLoopInterval);
-            clearInterval(syncInterval);
+            clearTimeout(syncTimeout);
             gameLoopInterval = null;
-            syncInterval = null;
+            syncTimeout = null;
             
             let rank = 1;
             const myScore = myPlayer.score || 0;
@@ -679,9 +748,11 @@
             for (let y = startRow; y <= endRow; y++) { ctx.beginPath(); ctx.moveTo(startCol * CELL_SIZE, y * CELL_SIZE); ctx.lineTo(endCol * CELL_SIZE, y * CELL_SIZE); ctx.stroke(); }
 
             // 내 캐릭터는 서버 스냅샷 대신 로컬 위치를 그려 이름과 몸체가 즉시 따라오게 합니다.
-            const renderPlayers = myPlayer && myPlayer.isAlive
-                ? { ...players, [myUid]: myPlayer }
-                : players;
+            const renderPlayers = {};
+            Object.entries(players).forEach(([uid, player]) => {
+                renderPlayers[uid] = uid === myUid ? player : getProjectedPlayer(player);
+            });
+            if (myPlayer && myPlayer.isAlive) renderPlayers[myUid] = myPlayer;
 
             // 플레이어 그리기 (화면에 보이는 땅만 그리도록 최적화)
             for (const uid in renderPlayers) {
