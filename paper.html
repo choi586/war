@@ -231,6 +231,8 @@
         let inputControlsReady = false;
         let animationStarted = false;
         let gameSessionId = null;
+        let authReady = false;
+        let playersReady = false;
 
         // 보조 함수
         function isMyTerritory(x, y, territory = []) { return territory.some(t => t.x === x && t.y === y); }
@@ -239,14 +241,50 @@
             return Array.from((name || '젤리').trim()).slice(0, 5).join('') || '젤리';
         }
 
+        function updateStartButton() {
+            const ready = authReady && playersReady;
+            startBtn.disabled = !ready;
+            startBtn.textContent = ready ? '시작하기!' : '서버 연결 중...';
+        }
+
+        function cellKey(x, y) {
+            return `${x},${y}`;
+        }
+
+        function isSpawnAreaClear(centerX, centerY, blocked) {
+            // 시작 땅 주변에도 여유를 둬서 다른 사람 땅 바로 옆에 태어나지 않게 합니다.
+            for (let dy = -4; dy <= 4; dy++) {
+                for (let dx = -4; dx <= 4; dx++) {
+                    if (blocked.has(cellKey(centerX + dx, centerY + dy))) return false;
+                }
+            }
+            return true;
+        }
+
+        function findSpawnPoint() {
+            const blocked = new Set();
+            Object.values(players).forEach(player => {
+                if (!player || !player.isAlive) return;
+                (player.territory || []).forEach(cell => blocked.add(cellKey(cell.x, cell.y)));
+                (player.trail || []).forEach(cell => blocked.add(cellKey(cell.x, cell.y)));
+                if (Number.isInteger(player.x) && Number.isInteger(player.y)) blocked.add(cellKey(player.x, player.y));
+            });
+
+            for (let attempt = 0; attempt < 500; attempt++) {
+                const x = Math.floor(Math.random() * (GRID_SIZE - 40)) + 20;
+                const y = Math.floor(Math.random() * (GRID_SIZE - 40)) + 20;
+                if (isSpawnAreaClear(x, y, blocked)) return { x, y };
+            }
+            return null;
+        }
+
         function getRandomColor() {
             const colors = ['#FFB6C1', '#87CEFA', '#98FB98', '#FFDAB9', '#E6E6FA', '#F08080', '#20B2AA', '#FFA07A'];
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
         const startBtn = document.getElementById('start-btn');
-        startBtn.disabled = true;
-        startBtn.textContent = '서버 연결 중...';
+        updateStartButton();
 
         const initAuth = async () => {
             try {
@@ -260,8 +298,9 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 myUid = user.uid;
-                startBtn.disabled = false;
-                startBtn.textContent = '시작하기!';
+                authReady = true;
+                listenToGameData();
+                updateStartButton();
             }
         });
 
@@ -292,6 +331,7 @@
                     playerData.territory = myPlayer.territory;
                     playerData.score = myPlayer.score;
                     playerData.percent = myPlayer.percent;
+                    playerData.territoryRevision = myPlayer.territoryRevision || 0;
                 }
                 await setDoc(playerRef, playerData, { merge: true });
             } catch (error) {
@@ -304,7 +344,7 @@
 
         async function startGame() {
             const nickname = shortName(document.getElementById('nickname').value);
-            if (!myUid) {
+            if (!myUid || !playersReady) {
                 alert('게임 서버에 연결 중입니다. 잠시 후 다시 눌러주세요.');
                 return;
             }
@@ -318,9 +358,12 @@
             document.getElementById('game-over-screen').classList.add('hidden');
             gameSessionId = `${myUid}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-            // 🌟 250x250 거대한 맵 어디서든 태어날 수 있게 스폰 반경 확장 (가장자리 20칸 제외)
-            const startX = Math.floor(Math.random() * (GRID_SIZE - 40)) + 20;
-            const startY = Math.floor(Math.random() * (GRID_SIZE - 40)) + 20;
+            const spawnPoint = findSpawnPoint();
+            if (!spawnPoint) {
+                alert('빈 공간을 찾지 못했어요. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+            const { x: startX, y: startY } = spawnPoint;
 
             myPlayer = {
                 uid: myUid, sessionId: gameSessionId, name: nickname, color: getRandomColor(),
@@ -328,7 +371,7 @@
                 dx: 0, dy: -1, nextDx: 0, nextDy: -1,
                 trail: [], territory: [],
                 score: 9, percent: (9 / TOTAL_AREA * 100).toFixed(4), // 소수점 4자리까지 표시 (맵이 커져서)
-                isAlive: true, lastActive: Date.now()
+                isAlive: true, territoryRevision: 0, lastActive: Date.now()
             };
 
             for (let dy = -1; dy <= 1; dy++) {
@@ -370,9 +413,21 @@
                 if (remoteMe && remoteMe.isAlive === false && myPlayer && myPlayer.isAlive === true) {
                     if (remoteMe.sessionId === myPlayer.sessionId) die();
                 }
+                if (remoteMe && myPlayer && remoteMe.sessionId === myPlayer.sessionId && Array.isArray(remoteMe.territory)) {
+                    const remoteRevision = remoteMe.territoryRevision || 0;
+                    const localRevision = myPlayer.territoryRevision || 0;
+                    if (remoteRevision > localRevision || remoteMe.territory.length < myPlayer.territory.length) {
+                        myPlayer.territory = remoteMe.territory;
+                        myPlayer.score = remoteMe.score || remoteMe.territory.length;
+                        myPlayer.percent = remoteMe.percent || ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4);
+                        myPlayer.territoryRevision = remoteRevision;
+                    }
+                }
                 if (myPlayer && myPlayer.isAlive) {
                     players[myUid] = { ...(players[myUid] || {}), ...myPlayer };
                 }
+                playersReady = true;
+                updateStartButton();
                 updatePlayerList();
             });
         }
@@ -444,6 +499,45 @@
             }
         }
 
+        async function removeClaimedCellsFromOtherPlayers(claimedCells) {
+            const claimedKeys = new Set(claimedCells.map(cell => cellKey(cell.x, cell.y)));
+
+            for (const uid in players) {
+                if (uid === myUid) continue;
+                const localOther = players[uid];
+                if (!localOther || !Array.isArray(localOther.territory)) continue;
+
+                const localTrimmed = localOther.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                if (localTrimmed.length === localOther.territory.length) continue;
+
+                // 내 화면에서는 점령 결과를 즉시 반영합니다.
+                localOther.territory = localTrimmed;
+                localOther.score = localTrimmed.length;
+                localOther.percent = ((localTrimmed.length / TOTAL_AREA) * 100).toFixed(4);
+                localOther.territoryRevision = (localOther.territoryRevision || 0) + 1;
+
+                const playerRef = doc(db, 'games', appId, 'players', uid);
+                try {
+                    await runTransaction(db, async transaction => {
+                        const snapshot = await transaction.get(playerRef);
+                        if (!snapshot.exists()) return;
+                        const current = snapshot.data();
+                        const currentTerritory = Array.isArray(current.territory) ? current.territory : [];
+                        const trimmedTerritory = currentTerritory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                        if (trimmedTerritory.length === currentTerritory.length) return;
+                        transaction.update(playerRef, {
+                            territory: trimmedTerritory,
+                            score: trimmedTerritory.length,
+                            percent: ((trimmedTerritory.length / TOTAL_AREA) * 100).toFixed(4),
+                            territoryRevision: (current.territoryRevision || 0) + 1
+                        });
+                    });
+                } catch (error) {
+                    console.warn('상대 영토 정리 실패:', error);
+                }
+            }
+        }
+
         function updateGameLogic() {
             if (!myPlayer || !myPlayer.isAlive) return;
 
@@ -508,9 +602,11 @@
                     if(map[y][x] !== 2) newTerritory.push({x: x, y: y});
                 }
             }
+            removeClaimedCellsFromOtherPlayers(newTerritory);
             myPlayer.territory = newTerritory;
             myPlayer.score = newTerritory.length;
             myPlayer.percent = ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4); // 맵이 커서 소수점 늘림
+            myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
         }
 
         function die() {
