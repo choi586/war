@@ -623,7 +623,9 @@
                 if (remoteMe && myPlayer && remoteMe.sessionId === myPlayer.sessionId && Array.isArray(remoteMe.territory)) {
                     const remoteRevision = remoteMe.territoryRevision || 0;
                     const localRevision = myPlayer.territoryRevision || 0;
-                    if (remoteRevision > localRevision || remoteMe.territory.length < myPlayer.territory.length) {
+                    // Realtime 위치 갱신이 Firestore 영토 저장보다 먼저 도착할 수 있으므로,
+                    // 영토 버전이 실제로 더 최신일 때만 로컬 영토를 교체합니다.
+                    if (remoteRevision > localRevision) {
                         myPlayer.territory = remoteMe.territory;
                         myPlayer.score = remoteMe.score || remoteMe.territory.length;
                         myPlayer.percent = remoteMe.percent || ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4);
