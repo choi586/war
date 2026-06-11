@@ -292,6 +292,44 @@
             return claimIds.slice(-100);
         }
 
+        function keepConnectedTerritory(territory, player) {
+            if (!Array.isArray(territory) || territory.length === 0) return [];
+            const cellsByKey = new Map(territory.map(cell => [cellKey(cell.x, cell.y), cell]));
+            const bodyKey = cellKey(player?.x, player?.y);
+            const anchorKey = cellKey(player?.territoryAnchor?.x, player?.territoryAnchor?.y);
+            let startKey = cellsByKey.has(bodyKey) ? bodyKey : (cellsByKey.has(anchorKey) ? anchorKey : null);
+
+            if (!startKey) {
+                let nearestCell = territory[0];
+                let nearestDistance = Infinity;
+                territory.forEach(cell => {
+                    const distance = Math.abs(cell.x - (player?.x || 0)) + Math.abs(cell.y - (player?.y || 0));
+                    if (distance < nearestDistance) {
+                        nearestCell = cell;
+                        nearestDistance = distance;
+                    }
+                });
+                startKey = cellKey(nearestCell.x, nearestCell.y);
+            }
+
+            const connected = [];
+            const visited = new Set([startKey]);
+            const queue = [cellsByKey.get(startKey)];
+            let head = 0;
+            while (head < queue.length) {
+                const cell = queue[head++];
+                connected.push(cell);
+                [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+                    const nextKey = cellKey(cell.x + dx, cell.y + dy);
+                    if (!visited.has(nextKey) && cellsByKey.has(nextKey)) {
+                        visited.add(nextKey);
+                        queue.push(cellsByKey.get(nextKey));
+                    }
+                });
+            }
+            return connected;
+        }
+
         function getProjectedPlayer(player) {
             if (!player || !player.isAlive || player.uid === myUid) return player;
             const projected = { ...player, trail: [...(player.trail || [])] };
@@ -328,9 +366,10 @@
                 });
             });
             if (claimedKeys.size === 0) return player;
+            const trimmedTerritory = player.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
             return {
                 ...player,
-                territory: player.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)))
+                territory: keepConnectedTerritory(trimmedTerritory, player)
             };
         }
 
@@ -394,6 +433,7 @@
                     nextDx: myPlayer.nextDx,
                     nextDy: myPlayer.nextDy,
                     trail: myPlayer.trail,
+                    territoryAnchor: myPlayer.territoryAnchor,
                     isAlive: myPlayer.isAlive,
                     lastActive: myPlayer.lastActive
                 };
@@ -452,7 +492,8 @@
                 trail: [], territory: [],
                 score: 9, percent: (9 / TOTAL_AREA * 100).toFixed(4), // 소수점 4자리까지 표시 (맵이 커져서)
                 isAlive: true, territoryRevision: 0, recentClaims: [],
-                appliedClaimIds: getCurrentClaimIds(), lastActive: Date.now()
+                appliedClaimIds: getCurrentClaimIds(), territoryAnchor: { x: startX, y: startY },
+                lastActive: Date.now()
             };
 
             for (let dy = -1; dy <= 1; dy++) {
@@ -602,7 +643,8 @@
                 const localOther = players[uid];
                 if (!localOther || !Array.isArray(localOther.territory)) continue;
 
-                const localTrimmed = localOther.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                const trimmedCells = localOther.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                const localTrimmed = keepConnectedTerritory(trimmedCells, localOther);
                 if (localTrimmed.length === localOther.territory.length) continue;
 
                 // 내 화면에서는 점령 결과를 즉시 반영합니다.
@@ -618,7 +660,8 @@
                         if (!snapshot.exists()) return;
                         const current = snapshot.data();
                         const currentTerritory = Array.isArray(current.territory) ? current.territory : [];
-                        const trimmedTerritory = currentTerritory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                        const trimmedCells = currentTerritory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                        const trimmedTerritory = keepConnectedTerritory(trimmedCells, current);
                         if (trimmedTerritory.length === currentTerritory.length) return;
                         transaction.update(playerRef, {
                             territory: trimmedTerritory,
@@ -649,7 +692,8 @@
                     claimsChanged = true;
                     const claimedKeys = new Set((claim.cells || []).map(cell => cellKey(cell.x, cell.y)));
                     if (claimedKeys.size === 0) continue;
-                    const trimmed = territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                    const trimmedCells = territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                    const trimmed = keepConnectedTerritory(trimmedCells, myPlayer);
                     if (trimmed.length !== territory.length) {
                         territory = trimmed;
                         territoryChanged = true;
@@ -710,6 +754,7 @@
             myPlayer.lastActive = Date.now();
 
             if (isMyTerritory(nextX, nextY, myPlayer.territory)) {
+                myPlayer.territoryAnchor = { x: nextX, y: nextY };
                 if (myPlayer.trail.length > 0) {
                     captureTerritory(); 
                     myPlayer.trail = [];
@@ -756,6 +801,7 @@
                     if(map[y][x] !== 2) newTerritory.push({x: x, y: y});
                 }
             }
+            newTerritory = keepConnectedTerritory(newTerritory, myPlayer);
             const newlyClaimedCells = newTerritory.filter(cell => !previousTerritoryKeys.has(cellKey(cell.x, cell.y)));
             const otherTerritoryKeys = new Set();
             Object.entries(players).forEach(([uid, player]) => {
@@ -765,13 +811,13 @@
             const contestedCells = newlyClaimedCells.filter(cell => otherTerritoryKeys.has(cellKey(cell.x, cell.y)));
             removeClaimedCellsFromOtherPlayers(contestedCells);
             myPlayer.territory = newTerritory;
-            myPlayer.score = newTerritory.length;
+            myPlayer.score = myPlayer.territory.length;
             myPlayer.percent = ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4); // 맵이 커서 소수점 늘림
             myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
-            if (contestedCells.length > 0) {
+            if (newlyClaimedCells.length > 0) {
                 const claim = {
                     id: `${myPlayer.sessionId}-${myPlayer.territoryRevision}-${Date.now()}`,
-                    cells: contestedCells
+                    cells: newlyClaimedCells
                 };
                 myPlayer.recentClaims = [...(myPlayer.recentClaims || []), claim].slice(-5);
             }
