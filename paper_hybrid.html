@@ -592,7 +592,11 @@
                 const now = Date.now();
                 Object.entries(motionPlayers).forEach(([uid, motion]) => {
                     if (!motion?.lastActive || now - motion.lastActive >= ACTIVE_TIMEOUT) return;
-                    players[uid] = { ...(territoryPlayers[uid] || {}), ...motion };
+                    const territory = territoryPlayers[uid];
+                    const matchingTerritory = territory?.sessionId === motion.sessionId
+                        ? territory
+                        : { territory: [], score: 0, percent: '0.0000', territoryRevision: 0, recentClaims: [] };
+                    players[uid] = { ...matchingTerritory, ...motion };
                 });
 
                 const remoteMe = players[myUid];
@@ -942,21 +946,28 @@
 
         function die() {
             if (!myPlayer || !myPlayer.isAlive) return;
+            const finalScore = myPlayer.score || 0;
+            const finalPercent = myPlayer.percent || '0.0000';
             myPlayer.isAlive = false;
-            syncToFirebase();
+            myPlayer.trail = [];
+            myPlayer.territory = [];
+            myPlayer.score = 0;
+            myPlayer.percent = '0.0000';
+            myPlayer.conquestAnchors = [];
+            myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
+            syncToFirebase(true);
             clearInterval(gameLoopInterval);
             clearTimeout(syncTimeout);
             gameLoopInterval = null;
             syncTimeout = null;
             
             let rank = 1;
-            const myScore = myPlayer.score || 0;
             for (let uid in players) {
-                if (uid !== myUid && players[uid].isAlive && (players[uid].score || 0) > myScore) rank++;
+                if (uid !== myUid && players[uid].isAlive && (players[uid].score || 0) > finalScore) rank++;
             }
 
             document.getElementById('game-over-screen').classList.remove('hidden');
-            document.getElementById('game-over-text').innerText = `내 순위: ${rank}위\n내 땅 넓이: ${myPlayer.percent}%`;
+            document.getElementById('game-over-text').innerText = `내 순위: ${rank}위\n내 땅 넓이: ${finalPercent}%`;
         }
 
         function drawGame() {
