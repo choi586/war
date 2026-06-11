@@ -624,48 +624,48 @@
             }, { passive: false });
         }
 
-        function claimDefeatedPlayer(uid, defeatedPlayer) {
+        function claimDefeatedPlayer(uid, defeatedPlayer, killCell) {
             if (!myPlayer || !defeatedPlayer || uid === myUid || !defeatedPlayer.sessionId) return;
             const rewardedSessions = new Set(myPlayer.rewardedKillSessions || []);
             if (rewardedSessions.has(defeatedPlayer.sessionId)) return;
 
             const resolvedDefeated = getPlayerWithResolvedTerritory(uid, defeatedPlayer, players);
             const defeatedTerritory = resolvedDefeated?.territory || [];
+            const defeatedTrail = resolvedDefeated?.trail || [];
             rewardedSessions.add(defeatedPlayer.sessionId);
             myPlayer.rewardedKillSessions = Array.from(rewardedSessions).slice(-50);
-            if (defeatedTerritory.length === 0) {
+            if (defeatedTerritory.length === 0 && defeatedTrail.length === 0) {
                 syncToFirebase(false);
                 return;
             }
 
+            const previousTerritoryKeys = new Set(myPlayer.territory.map(cell => cellKey(cell.x, cell.y)));
             const territoryByKey = new Map(myPlayer.territory.map(cell => [cellKey(cell.x, cell.y), cell]));
+            myPlayer.trail.forEach(cell => territoryByKey.set(cellKey(cell.x, cell.y), cell));
+            if (killCell) territoryByKey.set(cellKey(killCell.x, killCell.y), killCell);
+            defeatedTrail.forEach(cell => territoryByKey.set(cellKey(cell.x, cell.y), cell));
             defeatedTerritory.forEach(cell => territoryByKey.set(cellKey(cell.x, cell.y), cell));
-            myPlayer.territory = Array.from(territoryByKey.values());
-
-            let conquestAnchor = defeatedTerritory[0];
-            let nearestDistance = Infinity;
-            defeatedTerritory.forEach(cell => {
-                const distance = Math.abs(cell.x - defeatedPlayer.x) + Math.abs(cell.y - defeatedPlayer.y);
-                if (distance < nearestDistance) {
-                    conquestAnchor = cell;
-                    nearestDistance = distance;
-                }
+            myPlayer.territory = keepConnectedTerritory(Array.from(territoryByKey.values()), {
+                ...myPlayer,
+                x: killCell?.x ?? myPlayer.x,
+                y: killCell?.y ?? myPlayer.y,
+                conquestAnchors: []
             });
-            const anchorKeys = new Set((myPlayer.conquestAnchors || []).map(anchor => cellKey(anchor.x, anchor.y)));
-            anchorKeys.add(cellKey(conquestAnchor.x, conquestAnchor.y));
-            myPlayer.conquestAnchors = Array.from(anchorKeys).map(key => {
-                const [x, y] = key.split(',').map(Number);
-                return { x, y };
-            }).slice(-50);
+            myPlayer.trail = [];
+            myPlayer.conquestAnchors = [];
 
             myPlayer.score = myPlayer.territory.length;
             myPlayer.percent = ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4);
             myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
-            const claim = {
-                id: `kill-${myPlayer.sessionId}-${defeatedPlayer.sessionId}-${Date.now()}`,
-                cells: defeatedTerritory
-            };
-            myPlayer.recentClaims = [...(myPlayer.recentClaims || []), claim].slice(-5);
+            const newlyClaimedCells = myPlayer.territory.filter(cell => !previousTerritoryKeys.has(cellKey(cell.x, cell.y)));
+            if (newlyClaimedCells.length > 0) {
+                const claim = {
+                    id: `kill-${myPlayer.sessionId}-${defeatedPlayer.sessionId}-${Date.now()}`,
+                    cells: newlyClaimedCells
+                };
+                myPlayer.recentClaims = [...(myPlayer.recentClaims || []), claim].slice(-5);
+                removeClaimedCellsFromOtherPlayers(newlyClaimedCells);
+            }
             syncToFirebase(true);
         }
 
@@ -798,7 +798,7 @@
                 if (uid !== myUid && players[uid].isAlive) {
                     const other = getProjectedPlayer(players[uid]);
                     if (isMyTrail(nextX, nextY, other.trail)) {
-                        claimDefeatedPlayer(uid, players[uid]);
+                        claimDefeatedPlayer(uid, other, { x: nextX, y: nextY });
                         killPlayerIfSameSession(uid, players[uid].sessionId);
                     }
                 }
