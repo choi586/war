@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>킬 영토전 - 젤리 땅따먹기</title>
+    <!-- 🌟 귀여운 Jua 폰트 불러오기 -->
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Jua', sans-serif;
+            margin: 0;
+            padding: 0;
+            /* 귀여운 딸기우유빛 땡땡이 배경 */
+            background-color: #fff0f5;
+            background-image: radial-gradient(#ffb6c1 2px, transparent 2px);
+            background-size: 30px 30px;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            color: #555;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #canvas-wrapper {
+            position: absolute;
+            inset: 0;
+            touch-action: none; /* 모바일에서 스와이프할 때 화면 안 움직이게 고정 */
+        }
+
+        /* 게임 도화지 */
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background-color: #ffffff;
+        }
+
+        #sidebar {
+            position: absolute;
+            top: max(8px, env(safe-area-inset-top));
+            right: max(8px, env(safe-area-inset-right));
+            width: min(165px, 44vw);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.72);
+            border-radius: 12px;
+            padding: 7px 9px;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(255, 182, 193, 0.25);
+            backdrop-filter: blur(6px);
+        }
+
+        .panel h2 { margin: 0 0 4px 0; color: #ff69b4; font-size: 16px; text-shadow: 1px 1px 0px #ffe4e1; }
+
+        /* 접속자 목록 디자인 */
+        #player-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+            max-height: 35vh;
+            overflow: hidden;
+        }
+
+        #player-list li {
+            padding: 1px 0;
+            margin: 0;
+            background: transparent;
+            border: 0;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        /* 화면 덮개 (시작/종료) */
+        #login-screen, #game-over-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        input {
+            padding: 15px 20px;
+            font-size: 22px;
+            font-family: 'Jua', sans-serif;
+            border: 4px solid #ffb6c1;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            text-align: center;
+            width: 240px;
+            outline: none;
+            color: #ff69b4;
+            background: #fffafa;
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.05);
+        }
+        
+        input:focus { border-color: #ff69b4; }
+        input::placeholder { color: #ffc0cb; }
+
+        button {
+            padding: 15px 50px;
+            font-size: 26px;
+            font-family: 'Jua', sans-serif;
+            background: linear-gradient(135deg, #ff69b4, #ffb6c1);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 8px 20px rgba(255, 105, 180, 0.4);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        button:hover { transform: translateY(-4px); box-shadow: 0 12px 25px rgba(255, 105, 180, 0.6); }
+        button:active { transform: translateY(2px); box-shadow: 0 4px 10px rgba(255, 105, 180, 0.4); }
+        button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .hidden { display: none !important; }
+        h1 { color: #ff1493; margin-bottom: 10px; font-size: 42px; text-shadow: 2px 2px 0px #ffe4e1; text-align: center; }
+        #game-over-text { color: #ff69b4; font-size: 28px; margin-bottom: 30px; white-space: pre-line; text-align: center; line-height: 1.5;}
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- 시작 화면 -->
+        <div id="login-screen">
+            <h1>⚔️ 킬 영토전</h1>
+            <p style="color: #ff69b4; margin-bottom: 25px; font-size: 20px;">화면을 스와이프해서 이동하세요!</p>
+            <input type="text" id="nickname" placeholder="내 이름은?" maxlength="5">
+            <button id="start-btn">시작하기!</button>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div id="game-over-screen" class="hidden">
+            <h1>앗, 부딪혔어요! 💦</h1>
+            <div id="game-over-text">다시 도전해보세요!</div>
+            <button id="restart-btn">다시 할래!</button>
+        </div>
+
+        <!-- 게임 화면 영역 -->
+        <div id="canvas-wrapper">
+            <canvas id="game-canvas" width="800" height="600"></canvas>
+        </div>
+
+        <!-- 오른쪽 접속자 목록 -->
+        <div id="sidebar">
+            <div class="panel">
+                <h2>🏆 실시간 랭킹</h2>
+                <ul id="player-list">
+                    <!-- 접속한 사람들이 여기에 표시됩니다 -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ============================================================
+        // Firebase 설정 - GitHub Pages에서 그대로 작동하는 웹앱용 설정
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDrqOcf1Df1mrtR7l-Q9H8bjnqweaxclVk",
+            authDomain: "paperio-92034.firebaseapp.com",
+            projectId: "paperio-92034",
+            storageBucket: "paperio-92034.firebasestorage.app",
+            messagingSenderId: "847215519861",
+            appId: "1:847215519861:web:2877938b164b0a764a303c",
+            measurementId: "G-E6XQF20XH8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // 실험판은 기존 게임과 플레이어/영토 데이터를 섞지 않습니다.
+        const appId = 'jelly-paper-kill-io';
+
+        // 🌟 게임 기본 설정
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
+        
+        // 🚀 대규모 맵 설정 (20명 수용 가능하도록 250칸으로 대폭 확장)
+        const GRID_SIZE = 250; 
+        const CELL_SIZE = 20;  
+        const MAP_WIDTH = GRID_SIZE * CELL_SIZE;  // 5000 픽셀
+        const MAP_HEIGHT = GRID_SIZE * CELL_SIZE; // 5000 픽셀
+        const TOTAL_AREA = GRID_SIZE * GRID_SIZE;
+
+        const GAME_TICK = 100; // 이동 속도
+        const IDLE_SYNC_INTERVAL = 8000; // 자기 땅 안에서는 접속 유지용으로만 드물게 저장
+        const TRAIL_SYNC_INTERVAL = 1200; // 꼬리가 노출된 동안에는 충돌 판정을 위해 조금 더 자주 저장
+        const MAX_PREDICTION_TICKS = 20; // 서버 위치에서 최대 2초까지만 예측
+        const ACTIVE_TIMEOUT = 30000;
+
+        let myUid = null;
+        let myPlayer = null;
+        let players = {}; 
+
+        let gameLoopInterval = null;
+        let syncTimeout = null;
+        let unsubscribePlayers = null;
+        let inputControlsReady = false;
+        let animationStarted = false;
+        let gameSessionId = null;
+        let authReady = false;
+        let playersReady = false;
+        let syncInFlight = false;
+        let syncPending = null;
+
+        // 보조 함수
+        function isMyTerritory(x, y, territory = []) { return territory.some(t => t.x === x && t.y === y); }
+        function isMyTrail(x, y, trail = []) { return trail.some(t => t.x === x && t.y === y); }
+        function shortName(name) {
+            return Array.from((name || '젤리').trim()).slice(0, 5).join('') || '젤리';
+        }
+
+        function updateStartButton() {
+            const ready = authReady && playersReady;
+            startBtn.disabled = !ready;
+            startBtn.textContent = ready ? '시작하기!' : '서버 연결 중...';
+        }
+
+        function cellKey(x, y) {
+            return `${x},${y}`;
+        }
+
+        function isSpawnAreaClear(centerX, centerY, blocked) {
+            // 시작 땅 주변에도 여유를 둬서 다른 사람 땅 바로 옆에 태어나지 않게 합니다.
+            for (let dy = -4; dy <= 4; dy++) {
+                for (let dx = -4; dx <= 4; dx++) {
+                    if (blocked.has(cellKey(centerX + dx, centerY + dy))) return false;
+                }
+            }
+            return true;
+        }
+
+        function findSpawnPoint() {
+            const blocked = new Set();
+            Object.values(players).forEach(player => {
+                if (!player || !player.isAlive) return;
+                (player.territory || []).forEach(cell => blocked.add(cellKey(cell.x, cell.y)));
+                (player.trail || []).forEach(cell => blocked.add(cellKey(cell.x, cell.y)));
+                if (Number.isInteger(player.x) && Number.isInteger(player.y)) blocked.add(cellKey(player.x, player.y));
+            });
+
+            for (let attempt = 0; attempt < 500; attempt++) {
+                const x = Math.floor(Math.random() * (GRID_SIZE - 40)) + 20;
+                const y = Math.floor(Math.random() * (GRID_SIZE - 40)) + 20;
+                if (isSpawnAreaClear(x, y, blocked)) return { x, y };
+            }
+            return null;
+        }
+
+        function getCurrentClaimIds() {
+            const claimIds = [];
+            Object.values(players).forEach(player => {
+                (player.recentClaims || []).forEach(claim => {
+                    if (claim && claim.id) claimIds.push(claim.id);
+                });
+            });
+            return claimIds.slice(-100);
+        }
+
+        function keepConnectedTerritory(territory, player) {
+            if (!Array.isArray(territory) || territory.length === 0) return [];
+            const cellsByKey = new Map(territory.map(cell => [cellKey(cell.x, cell.y), cell]));
+            const bodyKey = cellKey(player?.x, player?.y);
+            const anchorKey = cellKey(player?.territoryAnchor?.x, player?.territoryAnchor?.y);
+            const startKeys = [];
+            if (cellsByKey.has(bodyKey)) startKeys.push(bodyKey);
+            else if (cellsByKey.has(anchorKey)) startKeys.push(anchorKey);
+            (player?.conquestAnchors || []).forEach(anchor => {
+                const key = cellKey(anchor.x, anchor.y);
+                if (cellsByKey.has(key)) startKeys.push(key);
+            });
+
+            if (startKeys.length === 0) {
+                let nearestCell = territory[0];
+                let nearestDistance = Infinity;
+                territory.forEach(cell => {
+                    const distance = Math.abs(cell.x - (player?.x || 0)) + Math.abs(cell.y - (player?.y || 0));
+                    if (distance < nearestDistance) {
+                        nearestCell = cell;
+                        nearestDistance = distance;
+                    }
+                });
+                startKeys.push(cellKey(nearestCell.x, nearestCell.y));
+            }
+
+            const connected = [];
+            const visited = new Set(startKeys);
+            const queue = startKeys.map(key => cellsByKey.get(key));
+            let head = 0;
+            while (head < queue.length) {
+                const cell = queue[head++];
+                connected.push(cell);
+                [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+                    const nextKey = cellKey(cell.x + dx, cell.y + dy);
+                    if (!visited.has(nextKey) && cellsByKey.has(nextKey)) {
+                        visited.add(nextKey);
+                        queue.push(cellsByKey.get(nextKey));
+                    }
+                });
+            }
+            return connected;
+        }
+
+        function getProjectedPlayer(player) {
+            if (!player || !player.isAlive || player.uid === myUid) return player;
+            const projected = { ...player, trail: [...(player.trail || [])] };
+            const elapsed = Math.max(0, Date.now() - (player.lastActive || Date.now()));
+            const ticks = Math.min(MAX_PREDICTION_TICKS, Math.floor(elapsed / GAME_TICK));
+            const dx = Number.isFinite(player.nextDx) ? player.nextDx : (player.dx || 0);
+            const dy = Number.isFinite(player.nextDy) ? player.nextDy : (player.dy || 0);
+
+            for (let i = 0; i < ticks; i++) {
+                const nextX = projected.x + dx;
+                const nextY = projected.y + dy;
+                if (nextX < 0 || nextX >= GRID_SIZE || nextY < 0 || nextY >= GRID_SIZE) break;
+                projected.x = nextX;
+                projected.y = nextY;
+                if (!isMyTerritory(nextX, nextY, projected.territory)) {
+                    if (!isMyTrail(nextX, nextY, projected.trail)) projected.trail.push({ x: nextX, y: nextY });
+                } else if (projected.trail.length > 0) {
+                    projected.trail = [];
+                }
+            }
+            return projected;
+        }
+
+        function getPlayerWithResolvedTerritory(uid, player, allPlayers) {
+            if (!player || !Array.isArray(player.territory)) return player;
+            const appliedIds = new Set(player.appliedClaimIds || []);
+            const claimedKeys = new Set();
+
+            Object.entries(allPlayers).forEach(([claimantUid, claimant]) => {
+                if (claimantUid === uid) return;
+                (claimant.recentClaims || []).forEach(claim => {
+                    if (!claim?.id || appliedIds.has(claim.id)) return;
+                    (claim.cells || []).forEach(cell => claimedKeys.add(cellKey(cell.x, cell.y)));
+                });
+            });
+            if (claimedKeys.size === 0) return player;
+            const trimmedTerritory = player.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+            return {
+                ...player,
+                territory: keepConnectedTerritory(trimmedTerritory, player)
+            };
+        }
+
+        function scheduleNextSync() {
+            if (syncTimeout) clearTimeout(syncTimeout);
+            if (!myPlayer || !myPlayer.isAlive) return;
+            const delay = myPlayer.trail.length > 0 ? TRAIL_SYNC_INTERVAL : IDLE_SYNC_INTERVAL;
+            syncTimeout = setTimeout(async () => {
+                await syncToFirebase(false);
+                scheduleNextSync();
+            }, delay);
+        }
+
+        function getRandomColor() {
+            const colors = ['#FFB6C1', '#87CEFA', '#98FB98', '#FFDAB9', '#E6E6FA', '#F08080', '#20B2AA', '#FFA07A'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        const startBtn = document.getElementById('start-btn');
+        updateStartButton();
+
+        const initAuth = async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("익명 로그인 실패:", error);
+                startBtn.textContent = '연결 실패 - 새로고침';
+            }
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                myUid = user.uid;
+                authReady = true;
+                listenToGameData();
+                updateStartButton();
+            }
+        });
+
+        initAuth();
+
+        async function syncToFirebase(includeTerritory = false) {
+            if (!myUid || !myPlayer) return;
+            if (syncInFlight) {
+                syncPending = syncPending === true || includeTerritory;
+                return;
+            }
+            syncInFlight = true;
+            try {
+                const playerRef = doc(db, 'games', appId, 'players', myUid);
+                myPlayer.lastActive = Date.now();
+                const playerData = {
+                    uid: myPlayer.uid,
+                    sessionId: myPlayer.sessionId,
+                    name: myPlayer.name,
+                    color: myPlayer.color,
+                    x: myPlayer.x,
+                    y: myPlayer.y,
+                    dx: myPlayer.dx,
+                    dy: myPlayer.dy,
+                    nextDx: myPlayer.nextDx,
+                    nextDy: myPlayer.nextDy,
+                    trail: myPlayer.trail,
+                    territoryAnchor: myPlayer.territoryAnchor,
+                    conquestAnchors: myPlayer.conquestAnchors || [],
+                    rewardedKillSessions: myPlayer.rewardedKillSessions || [],
+                    isAlive: myPlayer.isAlive,
+                    lastActive: myPlayer.lastActive
+                };
+
+                if (includeTerritory) {
+                    playerData.territory = myPlayer.territory;
+                    playerData.score = myPlayer.score;
+                    playerData.percent = myPlayer.percent;
+                    playerData.territoryRevision = myPlayer.territoryRevision || 0;
+                    playerData.recentClaims = myPlayer.recentClaims || [];
+                    playerData.appliedClaimIds = myPlayer.appliedClaimIds || [];
+                }
+                await setDoc(playerRef, playerData, { merge: true });
+            } catch (error) {
+                console.warn('Firebase 동기화 실패:', error);
+            } finally {
+                syncInFlight = false;
+                if (syncPending !== null) {
+                    const shouldIncludeTerritory = syncPending;
+                    syncPending = null;
+                    syncToFirebase(shouldIncludeTerritory);
+                }
+            }
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+        async function startGame() {
+            const nickname = shortName(document.getElementById('nickname').value);
+            if (!myUid || !playersReady) {
+                alert('게임 서버에 연결 중입니다. 잠시 후 다시 눌러주세요.');
+                return;
+            }
+
+            if (gameLoopInterval) clearInterval(gameLoopInterval);
+            if (syncTimeout) clearTimeout(syncTimeout);
+            gameLoopInterval = null;
+            syncTimeout = null;
+
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            gameSessionId = `${myUid}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+            const spawnPoint = findSpawnPoint();
+            if (!spawnPoint) {
+                alert('빈 공간을 찾지 못했어요. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+            const { x: startX, y: startY } = spawnPoint;
+
+            myPlayer = {
+                uid: myUid, sessionId: gameSessionId, name: nickname, color: getRandomColor(),
+                x: startX, y: startY,
+                dx: 0, dy: -1, nextDx: 0, nextDy: -1,
+                trail: [], territory: [],
+                score: 9, percent: (9 / TOTAL_AREA * 100).toFixed(4), // 소수점 4자리까지 표시 (맵이 커져서)
+                isAlive: true, territoryRevision: 0, recentClaims: [],
+                appliedClaimIds: getCurrentClaimIds(), territoryAnchor: { x: startX, y: startY },
+                conquestAnchors: [], rewardedKillSessions: [],
+                lastActive: Date.now()
+            };
+
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    myPlayer.territory.push({ x: startX + dx, y: startY + dy });
+                }
+            }
+
+            await syncToFirebase(true);
+            listenToGameData();
+
+            if (!inputControlsReady) {
+                window.addEventListener('keydown', handleInput);
+                setupSwipeControls();
+                inputControlsReady = true;
+            }
+
+            gameLoopInterval = setInterval(updateGameLogic, GAME_TICK); 
+            scheduleNextSync();
+            if (!animationStarted) {
+                animationStarted = true;
+                requestAnimationFrame(drawGame);
+            }
+        }
+
+        function listenToGameData() {
+            if (unsubscribePlayers) return;
+            const playersRef = collection(db, 'games', appId, 'players');
+            unsubscribePlayers = onSnapshot(playersRef, (snapshot) => {
+                players = {};
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    if (!data.lastActive || Date.now() - data.lastActive < ACTIVE_TIMEOUT) {
+                        players[docSnap.id] = data;
+                    }
+                });
+
+                const remoteMe = players[myUid];
+                if (remoteMe && remoteMe.isAlive === false && myPlayer && myPlayer.isAlive === true) {
+                    if (remoteMe.sessionId === myPlayer.sessionId) die();
+                }
+                if (remoteMe && myPlayer && remoteMe.sessionId === myPlayer.sessionId && Array.isArray(remoteMe.territory)) {
+                    const remoteRevision = remoteMe.territoryRevision || 0;
+                    const localRevision = myPlayer.territoryRevision || 0;
+                    if (remoteRevision > localRevision || remoteMe.territory.length < myPlayer.territory.length) {
+                        myPlayer.territory = remoteMe.territory;
+                        myPlayer.score = remoteMe.score || remoteMe.territory.length;
+                        myPlayer.percent = remoteMe.percent || ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4);
+                        myPlayer.territoryRevision = remoteRevision;
+                    }
+                }
+                applyPendingClaimsToMyTerritory();
+                if (myPlayer && myPlayer.isAlive) {
+                    players[myUid] = { ...(players[myUid] || {}), ...myPlayer };
+                }
+                playersReady = true;
+                updateStartButton();
+                updatePlayerList();
+            });
+        }
+
+        function handleInput(e) {
+            if (e.key === 'ArrowUp' || e.key === 'w') setDirection(0, -1);
+            else if (e.key === 'ArrowDown' || e.key === 's') setDirection(0, 1);
+            else if (e.key === 'ArrowLeft' || e.key === 'a') setDirection(-1, 0);
+            else if (e.key === 'ArrowRight' || e.key === 'd') setDirection(1, 0);
+        }
+
+        function setDirection(dx, dy) {
+            if (!myPlayer || !myPlayer.isAlive) return;
+            let changed = false;
+            if (dx !== 0 && myPlayer.dy !== 0 && (myPlayer.nextDx !== dx || myPlayer.nextDy !== 0)) {
+                myPlayer.nextDx = dx;
+                myPlayer.nextDy = 0;
+                changed = true;
+            }
+            if (dy !== 0 && myPlayer.dx !== 0 && (myPlayer.nextDx !== 0 || myPlayer.nextDy !== dy)) {
+                myPlayer.nextDx = 0;
+                myPlayer.nextDy = dy;
+                changed = true;
+            }
+            if (changed) {
+                syncToFirebase(false);
+                scheduleNextSync();
+            }
+        }
+
+        function setupSwipeControls() {
+            let touchStartX = 0;
+            let touchStartY = 0;
+            const canvasWrapper = document.getElementById('canvas-wrapper');
+
+            canvasWrapper.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            }, { passive: false });
+
+            canvasWrapper.addEventListener('touchmove', (e) => {
+                e.preventDefault(); 
+                let touchEndX = e.changedTouches[0].screenX;
+                let touchEndY = e.changedTouches[0].screenY;
+                
+                let dx = touchEndX - touchStartX;
+                let dy = touchEndY - touchStartY;
+                
+                const threshold = 30; 
+
+                if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        if (dx > 0) setDirection(1, 0); 
+                        else setDirection(-1, 0); 
+                    } else {
+                        if (dy > 0) setDirection(0, 1); 
+                        else setDirection(0, -1); 
+                    }
+                    touchStartX = touchEndX;
+                    touchStartY = touchEndY;
+                }
+            }, { passive: false });
+        }
+
+        function claimDefeatedPlayer(uid, defeatedPlayer) {
+            if (!myPlayer || !defeatedPlayer || uid === myUid || !defeatedPlayer.sessionId) return;
+            const rewardedSessions = new Set(myPlayer.rewardedKillSessions || []);
+            if (rewardedSessions.has(defeatedPlayer.sessionId)) return;
+
+            const resolvedDefeated = getPlayerWithResolvedTerritory(uid, defeatedPlayer, players);
+            const defeatedTerritory = resolvedDefeated?.territory || [];
+            rewardedSessions.add(defeatedPlayer.sessionId);
+            myPlayer.rewardedKillSessions = Array.from(rewardedSessions).slice(-50);
+            if (defeatedTerritory.length === 0) {
+                syncToFirebase(false);
+                return;
+            }
+
+            const territoryByKey = new Map(myPlayer.territory.map(cell => [cellKey(cell.x, cell.y), cell]));
+            defeatedTerritory.forEach(cell => territoryByKey.set(cellKey(cell.x, cell.y), cell));
+            myPlayer.territory = Array.from(territoryByKey.values());
+
+            let conquestAnchor = defeatedTerritory[0];
+            let nearestDistance = Infinity;
+            defeatedTerritory.forEach(cell => {
+                const distance = Math.abs(cell.x - defeatedPlayer.x) + Math.abs(cell.y - defeatedPlayer.y);
+                if (distance < nearestDistance) {
+                    conquestAnchor = cell;
+                    nearestDistance = distance;
+                }
+            });
+            const anchorKeys = new Set((myPlayer.conquestAnchors || []).map(anchor => cellKey(anchor.x, anchor.y)));
+            anchorKeys.add(cellKey(conquestAnchor.x, conquestAnchor.y));
+            myPlayer.conquestAnchors = Array.from(anchorKeys).map(key => {
+                const [x, y] = key.split(',').map(Number);
+                return { x, y };
+            }).slice(-50);
+
+            myPlayer.score = myPlayer.territory.length;
+            myPlayer.percent = ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4);
+            myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
+            const claim = {
+                id: `kill-${myPlayer.sessionId}-${defeatedPlayer.sessionId}-${Date.now()}`,
+                cells: defeatedTerritory
+            };
+            myPlayer.recentClaims = [...(myPlayer.recentClaims || []), claim].slice(-5);
+            syncToFirebase(true);
+        }
+
+        async function killPlayerIfSameSession(uid, expectedSessionId) {
+            if (!uid || !expectedSessionId) return;
+            const playerRef = doc(db, 'games', appId, 'players', uid);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const snapshot = await transaction.get(playerRef);
+                    if (!snapshot.exists()) return;
+                    const current = snapshot.data();
+                    if (current.sessionId === expectedSessionId && current.isAlive === true) {
+                        transaction.update(playerRef, {
+                            isAlive: false,
+                            lastActive: Date.now()
+                        });
+                    }
+                });
+            } catch (error) {
+                console.warn('상대 죽이기 처리 실패:', error);
+            }
+        }
+
+        async function removeClaimedCellsFromOtherPlayers(claimedCells) {
+            const claimedKeys = new Set(claimedCells.map(cell => cellKey(cell.x, cell.y)));
+
+            for (const uid in players) {
+                if (uid === myUid) continue;
+                const localOther = players[uid];
+                if (!localOther || !Array.isArray(localOther.territory)) continue;
+
+                const trimmedCells = localOther.territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                const localTrimmed = keepConnectedTerritory(trimmedCells, localOther);
+                if (localTrimmed.length === localOther.territory.length) continue;
+
+                // 내 화면에서는 점령 결과를 즉시 반영합니다.
+                localOther.territory = localTrimmed;
+                localOther.score = localTrimmed.length;
+                localOther.percent = ((localTrimmed.length / TOTAL_AREA) * 100).toFixed(4);
+                localOther.territoryRevision = (localOther.territoryRevision || 0) + 1;
+
+                const playerRef = doc(db, 'games', appId, 'players', uid);
+                try {
+                    await runTransaction(db, async transaction => {
+                        const snapshot = await transaction.get(playerRef);
+                        if (!snapshot.exists()) return;
+                        const current = snapshot.data();
+                        const currentTerritory = Array.isArray(current.territory) ? current.territory : [];
+                        const trimmedCells = currentTerritory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                        const trimmedTerritory = keepConnectedTerritory(trimmedCells, current);
+                        if (trimmedTerritory.length === currentTerritory.length) return;
+                        transaction.update(playerRef, {
+                            territory: trimmedTerritory,
+                            score: trimmedTerritory.length,
+                            percent: ((trimmedTerritory.length / TOTAL_AREA) * 100).toFixed(4),
+                            territoryRevision: (current.territoryRevision || 0) + 1
+                        });
+                    });
+                } catch (error) {
+                    console.warn('상대 영토 정리 실패:', error);
+                }
+            }
+        }
+
+        function applyPendingClaimsToMyTerritory() {
+            if (!myPlayer || !myPlayer.isAlive || !Array.isArray(myPlayer.territory)) return;
+            const appliedIds = new Set(myPlayer.appliedClaimIds || []);
+            let territory = myPlayer.territory;
+            let territoryChanged = false;
+            let claimsChanged = false;
+
+            for (const uid in players) {
+                if (uid === myUid) continue;
+                const other = players[uid];
+                for (const claim of other?.recentClaims || []) {
+                    if (!claim?.id || appliedIds.has(claim.id)) continue;
+                    appliedIds.add(claim.id);
+                    claimsChanged = true;
+                    const claimedKeys = new Set((claim.cells || []).map(cell => cellKey(cell.x, cell.y)));
+                    if (claimedKeys.size === 0) continue;
+                    const trimmedCells = territory.filter(cell => !claimedKeys.has(cellKey(cell.x, cell.y)));
+                    const trimmed = keepConnectedTerritory(trimmedCells, myPlayer);
+                    if (trimmed.length !== territory.length) {
+                        territory = trimmed;
+                        territoryChanged = true;
+                    }
+                }
+            }
+
+            if (!claimsChanged) return;
+            myPlayer.appliedClaimIds = Array.from(appliedIds).slice(-100);
+            if (territoryChanged) {
+                myPlayer.territory = territory;
+                myPlayer.score = territory.length;
+                myPlayer.percent = ((territory.length / TOTAL_AREA) * 100).toFixed(4);
+                myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
+            }
+            syncToFirebase(true);
+        }
+
+        function wasMyTrailCut() {
+            if (!myPlayer || !myPlayer.isAlive || myPlayer.trail.length === 0) return false;
+            const myTrailKeys = new Set(myPlayer.trail.map(cell => cellKey(cell.x, cell.y)));
+
+            for (const uid in players) {
+                if (uid === myUid) continue;
+                const other = getProjectedPlayer(players[uid]);
+                if (!other || !other.isAlive) continue;
+
+                if (myTrailKeys.has(cellKey(other.x, other.y))) return true;
+            }
+            return false;
+        }
+
+        function updateGameLogic() {
+            if (!myPlayer || !myPlayer.isAlive) return;
+            // 상대 문서를 직접 수정할 권한이 없어도, 피해자가 자기 꼬리 교차를 감지해 스스로 죽습니다.
+            if (wasMyTrailCut()) { die(); return; }
+
+            myPlayer.dx = myPlayer.nextDx;
+            myPlayer.dy = myPlayer.nextDy;
+
+            let nextX = myPlayer.x + myPlayer.dx;
+            let nextY = myPlayer.y + myPlayer.dy;
+
+            if (nextX < 0 || nextX >= GRID_SIZE || nextY < 0 || nextY >= GRID_SIZE) { die(); return; }
+            if (isMyTrail(nextX, nextY, myPlayer.trail)) { die(); return; }
+
+            for (const uid in players) {
+                if (uid !== myUid && players[uid].isAlive) {
+                    const other = getProjectedPlayer(players[uid]);
+                    if (isMyTrail(nextX, nextY, other.trail)) {
+                        claimDefeatedPlayer(uid, players[uid]);
+                        killPlayerIfSameSession(uid, players[uid].sessionId);
+                    }
+                }
+            }
+
+            myPlayer.x = nextX;
+            myPlayer.y = nextY;
+            myPlayer.lastActive = Date.now();
+
+            if (isMyTerritory(nextX, nextY, myPlayer.territory)) {
+                myPlayer.territoryAnchor = { x: nextX, y: nextY };
+                if (myPlayer.trail.length > 0) {
+                    captureTerritory(); 
+                    myPlayer.trail = [];
+                    syncToFirebase(true);
+                    scheduleNextSync();
+                }
+            } else {
+                const startedTrail = myPlayer.trail.length === 0;
+                myPlayer.trail.push({ x: nextX, y: nextY });
+                if (startedTrail) {
+                    syncToFirebase(false);
+                    scheduleNextSync();
+                }
+            }
+        }
+
+        function captureTerritory() {
+            const previousTerritoryKeys = new Set(myPlayer.territory.map(cell => cellKey(cell.x, cell.y)));
+            let map = Array(GRID_SIZE).fill().map(() => new Uint8Array(GRID_SIZE));
+            myPlayer.territory.forEach(p => map[p.y][p.x] = 1);
+            myPlayer.trail.forEach(p => map[p.y][p.x] = 1);
+
+            let queue = [];
+            for(let i=0; i<GRID_SIZE; i++) {
+                if(map[0][i] === 0) { queue.push({x: i, y: 0}); map[0][i] = 2; }
+                if(map[GRID_SIZE-1][i] === 0) { queue.push({x: i, y: GRID_SIZE-1}); map[GRID_SIZE-1][i] = 2; }
+                if(map[i][0] === 0) { queue.push({x: 0, y: i}); map[i][0] = 2; }
+                if(map[i][GRID_SIZE-1] === 0) { queue.push({x: GRID_SIZE-1, y: i}); map[i][GRID_SIZE-1] = 2; }
+            }
+
+            let head = 0;
+            while(head < queue.length) {
+                let curr = queue[head++];
+                let cx = curr.x, cy = curr.y;
+                if (cx > 0 && map[cy][cx-1] === 0) { map[cy][cx-1] = 2; queue.push({x: cx-1, y: cy}); }
+                if (cx < GRID_SIZE-1 && map[cy][cx+1] === 0) { map[cy][cx+1] = 2; queue.push({x: cx+1, y: cy}); }
+                if (cy > 0 && map[cy-1][cx] === 0) { map[cy-1][cx] = 2; queue.push({x: cx, y: cy-1}); }
+                if (cy < GRID_SIZE-1 && map[cy+1][cx] === 0) { map[cy+1][cx] = 2; queue.push({x: cx, y: cy+1}); }
+            }
+
+            let newTerritory = [];
+            for(let y=0; y<GRID_SIZE; y++) {
+                for(let x=0; x<GRID_SIZE; x++) {
+                    if(map[y][x] !== 2) newTerritory.push({x: x, y: y});
+                }
+            }
+            newTerritory = keepConnectedTerritory(newTerritory, myPlayer);
+            const newlyClaimedCells = newTerritory.filter(cell => !previousTerritoryKeys.has(cellKey(cell.x, cell.y)));
+            const otherTerritoryKeys = new Set();
+            Object.entries(players).forEach(([uid, player]) => {
+                if (uid === myUid) return;
+                (player.territory || []).forEach(cell => otherTerritoryKeys.add(cellKey(cell.x, cell.y)));
+            });
+            const contestedCells = newlyClaimedCells.filter(cell => otherTerritoryKeys.has(cellKey(cell.x, cell.y)));
+            removeClaimedCellsFromOtherPlayers(contestedCells);
+            myPlayer.territory = newTerritory;
+            myPlayer.score = myPlayer.territory.length;
+            myPlayer.percent = ((myPlayer.score / TOTAL_AREA) * 100).toFixed(4); // 맵이 커서 소수점 늘림
+            myPlayer.territoryRevision = (myPlayer.territoryRevision || 0) + 1;
+            if (newlyClaimedCells.length > 0) {
+                const claim = {
+                    id: `${myPlayer.sessionId}-${myPlayer.territoryRevision}-${Date.now()}`,
+                    cells: newlyClaimedCells
+                };
+                myPlayer.recentClaims = [...(myPlayer.recentClaims || []), claim].slice(-5);
+            }
+        }
+
+        function die() {
+            if (!myPlayer || !myPlayer.isAlive) return;
+            myPlayer.isAlive = false;
+            syncToFirebase();
+            clearInterval(gameLoopInterval);
+            clearTimeout(syncTimeout);
+            gameLoopInterval = null;
+            syncTimeout = null;
+            
+            let rank = 1;
+            const myScore = myPlayer.score || 0;
+            for (let uid in players) {
+                if (uid !== myUid && players[uid].isAlive && (players[uid].score || 0) > myScore) rank++;
+            }
+
+            document.getElementById('game-over-screen').classList.remove('hidden');
+            document.getElementById('game-over-text').innerText = `내 순위: ${rank}위\n내 땅 넓이: ${myPlayer.percent}%`;
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!myPlayer) { requestAnimationFrame(drawGame); return; }
+
+            let cameraX = (myPlayer.x * CELL_SIZE) - (canvas.width / 2) + (CELL_SIZE / 2);
+            let cameraY = (myPlayer.y * CELL_SIZE) - (canvas.height / 2) + (CELL_SIZE / 2);
+
+            const maxCamX = MAP_WIDTH - canvas.width;
+            const maxCamY = MAP_HEIGHT - canvas.height;
+            cameraX = Math.max(0, Math.min(cameraX, maxCamX));
+            cameraY = Math.max(0, Math.min(cameraY, maxCamY));
+
+            ctx.save();
+            ctx.translate(-cameraX, -cameraY);
+
+            ctx.fillStyle = '#fafafa';
+            ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+            // 🚀 최적화(Culling) 계산: 화면(카메라)에 보이는 영역(Start/End)만 구하기
+            const cullPad = 1;
+            const startCol = Math.max(0, Math.floor(cameraX / CELL_SIZE) - cullPad);
+            const endCol = Math.min(GRID_SIZE, Math.ceil((cameraX + canvas.width) / CELL_SIZE) + cullPad);
+            const startRow = Math.max(0, Math.floor(cameraY / CELL_SIZE) - cullPad);
+            const endRow = Math.min(GRID_SIZE, Math.ceil((cameraY + canvas.height) / CELL_SIZE) + cullPad);
+
+            ctx.strokeStyle = '#f5f5f5';
+            ctx.lineWidth = 1;
+            for (let x = startCol; x <= endCol; x++) { ctx.beginPath(); ctx.moveTo(x * CELL_SIZE, startRow * CELL_SIZE); ctx.lineTo(x * CELL_SIZE, endRow * CELL_SIZE); ctx.stroke(); }
+            for (let y = startRow; y <= endRow; y++) { ctx.beginPath(); ctx.moveTo(startCol * CELL_SIZE, y * CELL_SIZE); ctx.lineTo(endCol * CELL_SIZE, y * CELL_SIZE); ctx.stroke(); }
+
+            // 내 캐릭터는 서버 스냅샷 대신 로컬 위치를 그려 이름과 몸체가 즉시 따라오게 합니다.
+            const projectedPlayers = {};
+            Object.entries(players).forEach(([uid, player]) => {
+                projectedPlayers[uid] = uid === myUid ? player : getProjectedPlayer(player);
+            });
+            if (myPlayer && myPlayer.isAlive) projectedPlayers[myUid] = myPlayer;
+            const renderPlayers = {};
+            Object.entries(projectedPlayers).forEach(([uid, player]) => {
+                renderPlayers[uid] = getPlayerWithResolvedTerritory(uid, player, projectedPlayers);
+            });
+
+            // 플레이어 그리기 (화면에 보이는 땅만 그리도록 최적화)
+            for (const uid in renderPlayers) {
+                const p = renderPlayers[uid];
+                if (!p.isAlive) continue; 
+                
+                ctx.fillStyle = p.color;
+                
+                // 1. 땅 그리기 (최적화 적용)
+                ctx.globalAlpha = 0.5;
+                if(p.territory) {
+                    p.territory.forEach(t => {
+                        // 🚀 내 화면에 보이는 땅만 그립니다 (렉 방지)
+                        if (t.x >= startCol && t.x <= endCol && t.y >= startRow && t.y <= endRow) {
+                            ctx.fillRect(t.x * CELL_SIZE, t.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                        }
+                    });
+                }
+
+                // 2. 꼬리 그리기 (최적화 적용)
+                ctx.globalAlpha = 0.9;
+                if(p.trail) {
+                    p.trail.forEach(t => {
+                        if (t.x >= startCol && t.x <= endCol && t.y >= startRow && t.y <= endRow) {
+                            ctx.fillRect(t.x * CELL_SIZE, t.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                        }
+                    });
+                }
+
+                ctx.globalAlpha = 1.0;
+                
+                // 캐릭터 본체는 위치 상관없이 계산 (캐릭터는 1개니까 부하 적음)
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.roundRect(p.x * CELL_SIZE, p.y * CELL_SIZE, CELL_SIZE, CELL_SIZE, 4);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.fillStyle = '#666';
+                ctx.font = 'bold 14px "Jua", sans-serif';
+                ctx.textAlign = 'center';
+                const displayName = shortName(p.name);
+                ctx.fillText(uid === myUid ? `⭐ ${displayName}` : displayName, p.x * CELL_SIZE + (CELL_SIZE/2), p.y * CELL_SIZE - 8);
+            }
+
+            ctx.restore();
+
+            /* ====================================================================
+               🌟 우측 하단 미니맵 (전체 맵)
+            ==================================================================== */
+            const MINIMAP_SIZE = 140; // 맵이 커져서 미니맵도 살짝 키움
+            const minimapScale = MINIMAP_SIZE / GRID_SIZE; 
+            const minimapX = canvas.width - MINIMAP_SIZE - 15; 
+            const minimapY = canvas.height - MINIMAP_SIZE - 15; 
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.beginPath(); ctx.roundRect(minimapX, minimapY, MINIMAP_SIZE, MINIMAP_SIZE, 10); ctx.fill();
+            ctx.strokeStyle = '#ffb6c1';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            for (const uid in renderPlayers) {
+                const p = renderPlayers[uid];
+                if (!p.isAlive) continue; 
+                
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = 0.6;
+                if(p.territory) {
+                    p.territory.forEach(t => {
+                        // 미니맵 점이 너무 작아 보이지 않게 +0.5 보정
+                        ctx.fillRect(minimapX + t.x * minimapScale, minimapY + t.y * minimapScale, minimapScale + 0.5, minimapScale + 0.5);
+                    });
+                }
+
+                ctx.globalAlpha = 1.0;
+                if (uid === myUid) {
+                    ctx.fillStyle = '#ff1493'; 
+                    ctx.fillRect(minimapX + p.x * minimapScale - 2, minimapY + p.y * minimapScale - 2, minimapScale + 4, minimapScale + 4);
+                }
+                ctx.fillStyle = p.color;
+                ctx.fillRect(minimapX + p.x * minimapScale - 1, minimapY + p.y * minimapScale - 1, minimapScale + 2, minimapScale + 2);
+            }
+
+            requestAnimationFrame(drawGame);
+        }
+
+        function updatePlayerList() {
+            const list = document.getElementById('player-list');
+            list.innerHTML = ''; 
+            const rankingPlayers = myPlayer && myPlayer.isAlive
+                ? { ...players, [myUid]: myPlayer }
+                : players;
+            const sortedPlayers = Object.values(rankingPlayers).filter(p => p.isAlive).sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 5);
+
+            sortedPlayers.forEach(p => {
+                const li = document.createElement('li');
+                const percent = p.percent || "0.0000";
+                const nameText = p.uid === myUid ? `⭐ ${shortName(p.name)}` : shortName(p.name);
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = nameText;
+                const percentSpan = document.createElement('span');
+                percentSpan.style.fontSize = '12px';
+                percentSpan.style.color = '#888';
+                percentSpan.textContent = `${percent}%`;
+                li.append(nameSpan, percentSpan);
+                list.appendChild(li);
+            });
+        }
+    </script>
+</body>
+</html>
