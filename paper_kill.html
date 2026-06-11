@@ -237,6 +237,7 @@
         let playersReady = false;
         let syncInFlight = false;
         let syncPending = null;
+        let killShieldUntil = 0;
 
         // 보조 함수
         function isMyTerritory(x, y, territory = []) { return territory.some(t => t.x === x && t.y === y); }
@@ -389,9 +390,19 @@
             }, delay);
         }
 
-        function getRandomColor() {
-            const colors = ['#FFB6C1', '#87CEFA', '#98FB98', '#FFDAB9', '#E6E6FA', '#F08080', '#20B2AA', '#FFA07A'];
-            return colors[Math.floor(Math.random() * colors.length)];
+        function getPlayerColor() {
+            const colors = [
+                '#E53935', '#D81B60', '#8E24AA', '#5E35B1', '#3949AB',
+                '#1E88E5', '#039BE5', '#00ACC1', '#00897B', '#43A047',
+                '#7CB342', '#C0CA33', '#F9A825', '#FB8C00', '#F4511E',
+                '#6D4C41', '#546E7A', '#C2185B', '#00796B', '#4527A0'
+            ];
+            const usedColors = new Set(Object.values(players)
+                .filter(player => player?.isAlive)
+                .map(player => player.color));
+            const availableColors = colors.filter(color => !usedColors.has(color));
+            const choices = availableColors.length > 0 ? availableColors : colors;
+            return choices[Math.floor(Math.random() * choices.length)];
         }
 
         const startBtn = document.getElementById('start-btn');
@@ -442,6 +453,7 @@
                     territoryAnchor: myPlayer.territoryAnchor,
                     conquestAnchors: myPlayer.conquestAnchors || [],
                     rewardedKillSessions: myPlayer.rewardedKillSessions || [],
+                    recentKills: myPlayer.recentKills || [],
                     isAlive: myPlayer.isAlive,
                     lastActive: myPlayer.lastActive
                 };
@@ -485,6 +497,7 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('game-over-screen').classList.add('hidden');
             gameSessionId = `${myUid}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+            killShieldUntil = 0;
 
             const spawnPoint = findSpawnPoint();
             if (!spawnPoint) {
@@ -494,14 +507,14 @@
             const { x: startX, y: startY } = spawnPoint;
 
             myPlayer = {
-                uid: myUid, sessionId: gameSessionId, name: nickname, color: getRandomColor(),
+                uid: myUid, sessionId: gameSessionId, name: nickname, color: getPlayerColor(),
                 x: startX, y: startY,
                 dx: 0, dy: -1, nextDx: 0, nextDy: -1,
                 trail: [], territory: [],
                 score: 9, percent: (9 / TOTAL_AREA * 100).toFixed(4), // 소수점 4자리까지 표시 (맵이 커져서)
                 isAlive: true, territoryRevision: 0, recentClaims: [],
                 appliedClaimIds: getCurrentClaimIds(), territoryAnchor: { x: startX, y: startY },
-                conquestAnchors: [], rewardedKillSessions: [],
+                conquestAnchors: [], rewardedKillSessions: [], recentKills: [],
                 lastActive: Date.now()
             };
 
@@ -543,6 +556,25 @@
                 const remoteMe = players[myUid];
                 if (remoteMe && remoteMe.isAlive === false && myPlayer && myPlayer.isAlive === true) {
                     if (remoteMe.sessionId === myPlayer.sessionId) die();
+                }
+                if (myPlayer && myPlayer.isAlive) {
+                    const killedByOther = Object.entries(players).some(([uid, player]) => {
+                        if (uid === myUid || !player) return false;
+                        const hasIncomingKill = (player.recentKills || [])
+                            .some(kill => kill?.targetSessionId === myPlayer.sessionId);
+                        if (!hasIncomingKill) return false;
+
+                        const isMutualKill = (myPlayer.recentKills || [])
+                            .some(kill => kill?.targetSessionId === player.sessionId);
+                        if (!isMutualKill) return true;
+
+                        // 완전히 동시에 서로를 자른 경우 세션 ID가 작은 쪽만 생존시킵니다.
+                        return String(myPlayer.sessionId) > String(player.sessionId);
+                    });
+                    if (killedByOther) {
+                        die();
+                        return;
+                    }
                 }
                 if (remoteMe && myPlayer && remoteMe.sessionId === myPlayer.sessionId && Array.isArray(remoteMe.territory)) {
                     const remoteRevision = remoteMe.territoryRevision || 0;
@@ -634,8 +666,13 @@
             const defeatedTrail = resolvedDefeated?.trail || [];
             rewardedSessions.add(defeatedPlayer.sessionId);
             myPlayer.rewardedKillSessions = Array.from(rewardedSessions).slice(-50);
+            myPlayer.recentKills = [
+                ...(myPlayer.recentKills || []),
+                { targetSessionId: defeatedPlayer.sessionId, at: Date.now() }
+            ].slice(-20);
+            killShieldUntil = Date.now() + 2500;
             if (defeatedTerritory.length === 0 && defeatedTrail.length === 0) {
-                syncToFirebase(false);
+                syncToFirebase(true);
                 return;
             }
 
@@ -768,6 +805,7 @@
 
         function wasMyTrailCut() {
             if (!myPlayer || !myPlayer.isAlive || myPlayer.trail.length === 0) return false;
+            if (Date.now() < killShieldUntil) return false;
             const myTrailKeys = new Set(myPlayer.trail.map(cell => cellKey(cell.x, cell.y)));
 
             for (const uid in players) {
@@ -782,8 +820,6 @@
 
         function updateGameLogic() {
             if (!myPlayer || !myPlayer.isAlive) return;
-            // 상대 문서를 직접 수정할 권한이 없어도, 피해자가 자기 꼬리 교차를 감지해 스스로 죽습니다.
-            if (wasMyTrailCut()) { die(); return; }
 
             myPlayer.dx = myPlayer.nextDx;
             myPlayer.dy = myPlayer.nextDy;
@@ -803,6 +839,8 @@
                     }
                 }
             }
+            // 공격 성공 여부를 먼저 확정해, 같은 순간의 오래된 상대 위치 때문에 공격자까지 죽지 않게 합니다.
+            if (wasMyTrailCut()) { die(); return; }
 
             myPlayer.x = nextX;
             myPlayer.y = nextY;
