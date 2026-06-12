@@ -44,12 +44,13 @@
         }
 
         #sidebar {
-            position: absolute;
+            position: fixed;
             top: max(8px, env(safe-area-inset-top));
             right: max(8px, env(safe-area-inset-right));
             width: min(165px, 44vw);
-            z-index: 5;
+            z-index: 30;
             pointer-events: none;
+            display: block;
         }
 
         .panel {
@@ -94,7 +95,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 10;
+            z-index: 40;
         }
 
         input {
@@ -136,6 +137,20 @@
         .hidden { display: none !important; }
         h1 { color: #ff1493; margin-bottom: 10px; font-size: 42px; text-shadow: 2px 2px 0px #ffe4e1; text-align: center; }
         #game-over-text { color: #ff69b4; font-size: 28px; margin-bottom: 30px; white-space: pre-line; text-align: center; line-height: 1.5;}
+
+        @media (max-width: 600px) {
+            #sidebar {
+                top: calc(env(safe-area-inset-top) + 10px);
+                right: calc(env(safe-area-inset-right) + 8px);
+                width: 148px;
+            }
+            .panel {
+                background: rgba(255, 255, 255, 0.9);
+                padding: 6px 8px;
+            }
+            .panel h2 { font-size: 14px; }
+            #player-list li { font-size: 12px; }
+        }
 
     </style>
 </head>
@@ -247,6 +262,7 @@
         let killShieldUntil = 0;
         let territoriesReady = false;
         let motionsReady = false;
+        let backgroundHandled = false;
 
         // 보조 함수
         function isMyTerritory(x, y, territory = []) { return territory.some(t => t.x === x && t.y === y); }
@@ -587,6 +603,39 @@
             }
         }
 
+        function disconnectDataListeners() {
+            if (unsubscribeTerritories) unsubscribeTerritories();
+            if (unsubscribeMotions) unsubscribeMotions();
+            unsubscribeTerritories = null;
+            unsubscribeMotions = null;
+        }
+
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                if (backgroundHandled) return;
+                backgroundHandled = true;
+                if (myPlayer?.isAlive) die();
+                disconnectDataListeners();
+                return;
+            }
+
+            backgroundHandled = false;
+            territoriesReady = false;
+            motionsReady = false;
+            playersReady = false;
+            listenToGameData();
+            updateStartButton();
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', () => {
+            if (myPlayer?.isAlive) die();
+            disconnectDataListeners();
+        });
+        window.addEventListener('pageshow', () => {
+            if (!unsubscribeTerritories || !unsubscribeMotions) handleVisibilityChange();
+        });
+
         function rebuildPlayers() {
                 players = {};
                 const now = Date.now();
@@ -640,7 +689,8 @@
                 if (myPlayer && myPlayer.isAlive) {
                     players[myUid] = { ...(players[myUid] || {}), ...myPlayer };
                 }
-                playersReady = territoriesReady && motionsReady;
+                // 위치 DB가 준비되면 먼저 시작하고, 영토 DB는 도착 즉시 합칩니다.
+                playersReady = motionsReady;
                 updateStartButton();
                 updatePlayerList();
         }
